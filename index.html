@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>HoodTalk — Ordinary words in. Hood certified out.</title>
-<meta name="description" content="HoodTalk: a funny AI slang translator. Type anything and hear it back in Hood Talk, Gangster, OG, Funny Hood, Crash-Out, Savage, Street Poet, or Authentic. Runs entirely on your device.">
+<meta name="description" content="HoodTalk: a funny AI slang translator. Type anything and hear it back in Hood Talk, Gangster, OG, Funny Hood, Crash-Out, Savage, Street Poet, or Authentic. Plus Fluent English writing fixes and Say It Back replies. Runs entirely on your device.">
 <meta name="theme-color" content="#0B0B10">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
@@ -37,9 +37,19 @@
       <span class="hint">Cmd/Ctrl + Enter to translate</span>
     </div>
 
+    <div class="mode-switch" role="group" aria-label="Mode">
+      <button type="button" class="mode-switch-btn is-active" id="mode-slang-btn" aria-pressed="true">Slang</button>
+      <button type="button" class="mode-switch-btn" id="mode-fluent-btn" aria-pressed="false">Fluent English</button>
+    </div>
+
+    <div id="slang-controls">
+    <div class="nfg-row" id="nfg-row">
+      <input type="checkbox" id="nfg-toggle" aria-label="NO FUCKS GIVEN mode">
+      <label for="nfg-toggle"><span class="nfg-label">NO FUCKS GIVEN</span><span class="nfg-note">Unleashes Hood Talk's strongest voice — foul-mouthed, savage, zero filter. Hood Talk only.</span></label>
+    </div>
     <div class="field-label">Pick your flavor</div>
     <div class="chips" id="personality-chips" role="group" aria-label="Personality"></div>
-    <p class="mode-blurb" id="mode-blurb">Casual street slang, everyday energy.</p>
+    <p class="mode-blurb" id="mode-blurb">★ The flagship voice — natural, confident, funny street talk.</p>
 
     <div class="slider-block">
       <div class="slider-head">
@@ -48,6 +58,13 @@
       </div>
       <input type="range" id="intensity" min="1" max="10" step="1" value="5" aria-label="Intensity, 1 slight slang to 10 completely unhinged">
       <div class="slider-ends"><span>1 · slight slang</span><span>10 · completely unhinged</span></div>
+    </div>
+    </div>
+
+    <div id="fluent-controls" hidden>
+      <div class="field-label">How should I fix it?</div>
+      <div class="chips" id="fluent-chips" role="group" aria-label="Fluent English option"></div>
+      <p class="mode-blurb" id="fluent-blurb">Correct Only — fix the errors. Change nothing else.</p>
     </div>
 
     <button class="translate-btn" id="translate-btn" type="button">Translate it</button>
@@ -63,15 +80,58 @@
     </div>
 
     <article class="card howto">
+      <div class="card-kicker">Say It Back</div>
+      <p>Somebody just texted you? Paste what they said and get three ways to answer back — in your voice.</p>
+      <button class="use-mode-btn" id="open-sayitback-btn" type="button">Open Say It Back</button>
+    </article>
+
+    <article class="card howto">
       <div class="card-kicker">How it works</div>
       <p>Type anything — a question, a work message, a request, a comeback, a whole paragraph. Pick a personality, set the intensity, hit translate. Everything runs on your phone: no accounts, no tracking, nothing leaves your device.</p>
     </article>
   </section>
 
+  <!-- ============ SAY IT BACK ============ -->
+  <section id="tab-sayitback" class="tab-panel" role="tabpanel" aria-label="Say It Back" hidden>
+    <h1 class="page-title">Say It Back</h1>
+    <p class="page-note">Paste what they just said. Get back three ways to answer it — in your voice.</p>
+
+    <label class="field-label" for="sib-input">Paste what they said</label>
+    <textarea id="sib-input" rows="4" maxlength="2000" placeholder="Paste their message here…"></textarea>
+    <div class="input-row">
+      <button class="text-btn" id="sib-clear-btn" type="button">Clear</button>
+      <span class="hint">We reply to it — we don't translate it</span>
+    </div>
+
+    <div class="field-label">Reply in this voice</div>
+    <div class="chips" id="sib-chips" role="group" aria-label="Reply personality"></div>
+
+    <div class="slider-block">
+      <div class="slider-head">
+        <label class="field-label" for="sib-intensity">Intensity</label>
+        <span class="slider-value" id="sib-intensity-value">5 / 10 — strong personality</span>
+      </div>
+      <input type="range" id="sib-intensity" min="1" max="10" step="1" value="5" aria-label="Reply intensity, 1 slight slang to 10 completely unhinged">
+      <div class="slider-ends"><span>1 · slight slang</span><span>10 · completely unhinged</span></div>
+    </div>
+
+    <button class="translate-btn" id="sib-btn" type="button">What do I say back?</button>
+
+    <div id="sib-results-section" hidden>
+      <div class="results-head">
+        <h2>Three ways to say it back</h2>
+        <p class="fine" id="sib-intent-note"></p>
+      </div>
+      <div id="sib-results"></div>
+    </div>
+
+    <button class="random-btn" id="sib-back-btn" type="button" style="margin-top:18px">← Back to translator</button>
+  </section>
+
   <!-- ============ MODES ============ -->
   <section id="tab-modes" class="tab-panel" role="tabpanel" aria-label="Modes" hidden>
     <h1 class="page-title">Modes</h1>
-    <p class="page-note">Eight personalities. Same you, different energy. Tap “Use” on any of them to translate in that voice.</p>
+    <p class="page-note">Eight personalities, plus Fluent English writing mode and Say It Back replies. Tap “Use” on any of them.</p>
     <div id="modes-list"></div>
   </section>
 
@@ -97,12 +157,21 @@
       <div class="card-kicker">Defaults</div>
       <label class="field-label" for="default-personality">Default personality</label>
       <select id="default-personality" class="select"></select>
+      <label class="field-label" for="default-mode">Default mode</label>
+      <select id="default-mode" class="select">
+        <option value="slang">Slang translator</option>
+        <option value="fluent">Fluent English</option>
+      </select>
       <div class="slider-block">
         <div class="slider-head">
           <label class="field-label" for="default-intensity">Default intensity</label>
           <span class="slider-value" id="default-intensity-value">5 / 10</span>
         </div>
         <input type="range" id="default-intensity" min="1" max="10" step="1" value="5" aria-label="Default intensity">
+      </div>
+      <div class="setting-row">
+        <span>NO FUCKS GIVEN · <span class="fine">unleashed Hood Talk voice, off by default</span></span>
+        <input type="checkbox" id="settings-nfg-toggle" aria-label="NO FUCKS GIVEN mode">
       </div>
     </article>
 
