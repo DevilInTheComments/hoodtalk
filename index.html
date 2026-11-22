@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>HoodTalk — Ordinary words in. Hood certified out.</title>
+<meta name="description" content="HoodTalk: a funny AI slang translator. Type anything and hear it back in Hood Talk, Gangster, OG, Funny Hood, Crash-Out, Savage, Street Poet, or Authentic. Runs entirely on your device.">
+<meta name="theme-color" content="#0B0B10">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="HoodTalk">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<link rel="icon" type="image/png" sizes="180x180" href="icons/icon-180.png">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<header class="top">
+  <div class="logo-row">
+    <div class="logo-mark" aria-hidden="true">HT</div>
+    <div>
+      <h1 class="app-name">HoodTalk</h1>
+      <p class="app-tag">Ordinary words in. Hood certified out.</p>
+    </div>
+  </div>
+</header>
+
+<main id="main">
+  <!-- ============ HOME / TRANSLATOR ============ -->
+  <section id="tab-home" class="tab-panel" role="tabpanel" aria-label="Translator">
+    <label class="field-label" for="input-text">Say it normal first</label>
+    <textarea id="input-text" rows="4" maxlength="2000" placeholder="Type literally anything… e.g. Yo pops, can I make some coffee?"></textarea>
+    <div class="input-row">
+      <button class="text-btn" id="clear-input-btn" type="button">Clear</button>
+      <span class="hint">Cmd/Ctrl + Enter to translate</span>
+    </div>
+
+    <div class="field-label">Pick your flavor</div>
+    <div class="chips" id="personality-chips" role="group" aria-label="Personality"></div>
+    <p class="mode-blurb" id="mode-blurb">Casual street slang, everyday energy.</p>
+
+    <div class="slider-block">
+      <div class="slider-head">
+        <label class="field-label" for="intensity">Intensity</label>
+        <span class="slider-value" id="intensity-value">5 / 10 — strong personality</span>
+      </div>
+      <input type="range" id="intensity" min="1" max="10" step="1" value="5" aria-label="Intensity, 1 slight slang to 10 completely unhinged">
+      <div class="slider-ends"><span>1 · slight slang</span><span>10 · completely unhinged</span></div>
+    </div>
+
+    <button class="translate-btn" id="translate-btn" type="button">Translate it</button>
+    <button class="random-btn" id="random-btn" type="button">🎲 Random drop</button>
+    <p class="random-note" id="random-note"></p>
+
+    <div id="results-section" hidden>
+      <div class="results-head">
+        <h2>Your translation</h2>
+        <p class="fine">Three takes, same meaning. Pick your favorite — or all three.</p>
+      </div>
+      <div id="results"></div>
+    </div>
+
+    <article class="card howto">
+      <div class="card-kicker">How it works</div>
+      <p>Type anything — a question, a work message, a request, a comeback, a whole paragraph. Pick a personality, set the intensity, hit translate. Everything runs on your phone: no accounts, no tracking, nothing leaves your device.</p>
+    </article>
+  </section>
+
+  <!-- ============ MODES ============ -->
+  <section id="tab-modes" class="tab-panel" role="tabpanel" aria-label="Modes" hidden>
+    <h1 class="page-title">Modes</h1>
+    <p class="page-note">Eight personalities. Same you, different energy. Tap “Use” on any of them to translate in that voice.</p>
+    <div id="modes-list"></div>
+  </section>
+
+  <!-- ============ HISTORY ============ -->
+  <section id="tab-history" class="tab-panel" role="tabpanel" aria-label="History" hidden>
+    <h1 class="page-title">History</h1>
+    <p class="page-note">Your last 50 translations, newest first. Load one back into the translator, copy it, or delete it.</p>
+    <div id="history-list"></div>
+  </section>
+
+  <!-- ============ FAVORITES ============ -->
+  <section id="tab-favorites" class="tab-panel" role="tabpanel" aria-label="Favorites" hidden>
+    <h1 class="page-title">Favorites</h1>
+    <p class="page-note">The funniest ones you saved. Tap ☆ Save on any result to keep it here.</p>
+    <div id="favorites-list"></div>
+  </section>
+
+  <!-- ============ SETTINGS ============ -->
+  <section id="tab-settings" class="tab-panel" role="tabpanel" aria-label="Settings" hidden>
+    <h1 class="page-title">Settings</h1>
+
+    <article class="card">
+      <div class="card-kicker">Defaults</div>
+      <label class="field-label" for="default-personality">Default personality</label>
+      <select id="default-personality" class="select"></select>
+      <div class="slider-block">
+        <div class="slider-head">
+          <label class="field-label" for="default-intensity">Default intensity</label>
+          <span class="slider-value" id="default-intensity-value">5 / 10</span>
+        </div>
+        <input type="range" id="default-intensity" min="1" max="10" step="1" value="5" aria-label="Default intensity">
+      </div>
+    </article>
+
+    <article class="card">
+      <div class="card-kicker">Your stuff</div>
+      <div class="setting-row">
+        <span>Translation history · <span id="history-count">0 saved</span></span>
+        <button class="mini-btn danger" id="clear-history-btn" type="button">Clear history</button>
+      </div>
+      <div class="setting-row">
+        <span>Favorites · <span id="favorites-count">0 saved</span></span>
+        <button class="mini-btn danger" id="clear-favorites-btn" type="button">Clear favorites</button>
+      </div>
+      <div class="setting-row">
+        <span>Start fresh</span>
+        <button class="mini-btn" id="reset-settings-btn" type="button">Reset settings</button>
+      </div>
+    </article>
+
+    <article class="card">
+      <div class="card-kicker">About</div>
+      <p>HoodTalk is a joke translator, not a real AI. Every translation is generated on your device by a rule-based engine — no servers, no API keys, no data sent anywhere. The slang is for laughs; it leans on familiar phrases on purpose and keeps it playful, not mean.</p>
+      <p class="fine" id="about-version">Version 1.0.0</p>
+    </article>
+  </section>
+</main>
+
+<nav class="tabbar" role="tablist" aria-label="Sections">
+  <button class="tab-btn is-active" role="tab" aria-selected="true" data-tab="home" type="button"><span class="tab-icon" aria-hidden="true">💬</span><span class="tab-label">Home</span></button>
+  <button class="tab-btn" role="tab" aria-selected="false" data-tab="modes" type="button"><span class="tab-icon" aria-hidden="true">🎭</span><span class="tab-label">Modes</span></button>
+  <button class="tab-btn" role="tab" aria-selected="false" data-tab="history" type="button"><span class="tab-icon" aria-hidden="true">🕘</span><span class="tab-label">History</span></button>
+  <button class="tab-btn" role="tab" aria-selected="false" data-tab="favorites" type="button"><span class="tab-icon" aria-hidden="true">★</span><span class="tab-label">Favorites</span></button>
+  <button class="tab-btn" role="tab" aria-selected="false" data-tab="settings" type="button"><span class="tab-icon" aria-hidden="true">⚙</span><span class="tab-label">Settings</span></button>
+</nav>
+
+<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+
+<script src="app.js"></script>
+</body>
+</html>
