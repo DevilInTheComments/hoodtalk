@@ -7,7 +7,10 @@
 var STORAGE_HISTORY = 'hoodtalk.history.v1';
 var STORAGE_FAVORITES = 'hoodtalk.favorites.v1';
 var STORAGE_SETTINGS = 'hoodtalk.settings.v1';
-var VERSION = '1.5.0';
+var STORAGE_DADTALK_PROFILES = 'hoodtalk.dadtalk.profiles.v1';
+var STORAGE_DADTALK_FAVORITES = 'hoodtalk.dadtalk.favorites.v1';
+var STORAGE_DADTALK_HISTORY = 'hoodtalk.dadtalk.history.v1';
+var VERSION = '1.6.0';
 
 /* ---------- seeded RNG (mulberry32) ---------- */
 function makeRng(seed) {
@@ -2244,6 +2247,607 @@ function isFav(list, text) {
   return (list || []).some(function (x) { return x.text === text; });
 }
 
+/* ================= Dad Talk (v1) =================
+ * A father–child communication assistant. Warm, natural dad voice —
+ * NOT slang, NOT therapy voice. Everything on-device, no network.
+ * Profiles start BLANK (founder decision): no pre-filled kid details
+ * anywhere in the shipped code. Personalization comes only from data
+ * the dad enters; a blank profile gets neutral templates, never
+ * invented interests. Pasted child messages are processed in memory
+ * only and never written to storage.
+ *
+ * Starter template format: [id, text, needs[]]
+ *   needs lists profile slot keys the template requires:
+ *   name, interest, artist, game, goal, activity, entertainment.
+ *   [] = neutral, works with a blank profile. */
+
+/* ----- profiles ----- */
+var DADTALK_PROFILE_KEYS = ['daughter', 'son'];
+function dadtalkProfileLabel(key) {
+  return key === 'son' ? 'Father–Son' : 'Daddy–Daughter';
+}
+function blankDadTalkProfile() {
+  return { name: '', age: '', interests: [], music: [], entertainment: [], games: [], activities: [], commStyle: '', topicsEnjoy: [], topicsAvoid: [], goals: [] };
+}
+function dadtalkSplitList(s) {
+  if (Array.isArray(s)) return s.map(function (x) { return String(x).trim(); }).filter(Boolean);
+  return String(s || '').split(',').map(function (x) { return x.trim(); }).filter(Boolean);
+}
+function normalizeDadTalkProfile(p) {
+  var out = blankDadTalkProfile();
+  if (!p) return out;
+  out.name = String(p.name || '').trim();
+  out.age = String(p.age || '').trim();
+  out.interests = dadtalkSplitList(p.interests);
+  out.music = dadtalkSplitList(p.music);
+  out.entertainment = dadtalkSplitList(p.entertainment);
+  out.games = dadtalkSplitList(p.games);
+  out.activities = dadtalkSplitList(p.activities);
+  out.commStyle = String(p.commStyle || '').trim();
+  out.topicsEnjoy = dadtalkSplitList(p.topicsEnjoy);
+  out.topicsAvoid = dadtalkSplitList(p.topicsAvoid);
+  out.goals = dadtalkSplitList(p.goals);
+  return out;
+}
+
+/* ----- starter categories ----- */
+var DADTALK_CATEGORIES = [
+  { id: 'funny', name: 'Funny & random' },
+  { id: 'checkin', name: 'Everyday check-ins' },
+  { id: 'music', name: 'Music & entertainment' },
+  { id: 'hobbies', name: 'Hobbies & interests' },
+  { id: 'memories', name: 'Childhood memories' },
+  { id: 'dreams', name: 'Dreams & future goals' },
+  { id: 'friends', name: 'Friendships & relationships' },
+  { id: 'life', name: 'Life experiences' },
+  { id: 'confidence', name: 'Confidence & encouragement' },
+  { id: 'meaningful', name: 'Meaningful father–child' }
+];
+
+/* ----- starter banks: 10 categories x 20 templates -----
+ * Written for older teens (16–17), usable broadly. Short sentences,
+ * open-ended questions outnumber yes/no roughly 3:1. No invented
+ * memories, no stereotypes — the only difference between the two
+ * profiles is the dad-entered data. */
+var DADTALK_STARTERS = {
+  funny: [
+    ['funny-01', 'If you could have any superpower for a day, what would you pick?', []],
+    ['funny-02', "What's the weirdest thing you've seen online this week?", []],
+    ['funny-03', 'If our house had a theme song, what would it be?', []],
+    ['funny-04', 'Would you rather fight one horse-sized duck or a hundred duck-sized horses?', []],
+    ['funny-05', "What's the funniest thing that's happened to you lately?", []],
+    ['funny-06', 'If you could swap lives with anyone for a day, who would it be?', []],
+    ['funny-07', "What's a food combination you love that everyone else thinks is weird?", []],
+    ['funny-08', 'If you had to eat one meal for the rest of your life, what would it be?', []],
+    ['funny-09', "What's the most random fact you know?", []],
+    ['funny-10', 'If animals could talk, which one would be the funniest to have a conversation with?', []],
+    ['funny-11', "What's something that always makes you laugh, no matter what?", []],
+    ['funny-12', 'Would you rather be able to fly or be invisible?', []],
+    ['funny-13', "What's the silliest argument you've ever had with a friend?", []],
+    ['funny-14', 'If you could invent a new holiday, what would it be about?', []],
+    ['funny-15', "What's a movie or show you could quote word for word?", []],
+    ['funny-16', "If you won the lottery tomorrow, what's the first thing you'd buy?", []],
+    ['funny-17', "What's the best prank you've ever pulled — or had pulled on you?", []],
+    ['funny-18', 'If you could time travel to any year, where would you go?', []],
+    ['funny-19', "What's something you believed as a kid that turned out to be completely wrong?", []],
+    ['funny-20', 'If your life had a blooper reel, what would be on it?', []]
+  ],
+  checkin: [
+    ['checkin-01', 'What was the best part of your day?', []],
+    ['checkin-02', 'What was the worst part of your day — and what made it better, if anything did?', []],
+    ['checkin-03', 'Anything today that made you laugh?', []],
+    ['checkin-04', 'How are you really doing today — not the polite answer.', []],
+    ['checkin-05', "What's one thing you're looking forward to this week?", []],
+    ['checkin-06', 'What was the most interesting thing you learned today?', []],
+    ['checkin-07', 'Did anything surprise you today?', []],
+    ['checkin-08', 'Who did you hang out with today, and what did you get up to?', []],
+    ['checkin-09', 'Is there anything on your mind tonight?', []],
+    ['checkin-10', 'What would make today a 10 out of 10?', []],
+    ['checkin-11', "What's something that went well today, even if it was small?", []],
+    ['checkin-12', "How's your energy today — running on full or running on empty?", []],
+    ['checkin-13', "What's one thing you wish had gone differently today?", []],
+    ['checkin-14', 'Did you eat anything good today?', []],
+    ['checkin-15', "What are you in the mood to do tonight?", []],
+    ['checkin-16', "Anything coming up tomorrow you're thinking about?", []],
+    ['checkin-17', "What's the first thing you want to do when you get home?", []],
+    ['checkin-18', "On a scale of 1 to 10, how's your day going — and why that number?", []],
+    ['checkin-19', "What's something you're glad happened today?", []],
+    ['checkin-20', 'If today had a headline, what would it say?', []]
+  ],
+  music: [
+    ['music-01', 'What song have you had on repeat lately?', []],
+    ['music-02', "If you made a playlist for a road trip, what's the first track on it?", []],
+    ['music-03', 'Have you heard anything new from {artist} lately?', ['artist']],
+    ['music-04', 'What song describes your mood today?', []],
+    ['music-05', "Who's an artist you think more people should know about?", []],
+    ['music-06', "What's a song that always puts you in a good mood?", []],
+    ['music-07', 'If you could see any artist live, who would it be?', []],
+    ['music-08', 'What were you listening to on the way here?', []],
+    ['music-09', 'Is there a song that reminds you of us?', []],
+    ['music-10', "What's the best concert or show you've ever been to — or want to go to?", []],
+    ['music-11', 'Do you have a song you play when you need to focus?', []],
+    ['music-12', 'What do you think of the new stuff {artist} put out?', ['artist']],
+    ['music-13', "If your life had a soundtrack, what song would be playing right now?", []],
+    ['music-14', 'Have you watched anything good lately?', []],
+    ['music-15', "What's a show or movie you'd actually recommend to me?", []],
+    ['music-16', 'If we watched something together this weekend, what would you pick?', []],
+    ['music-17', 'What song would you play to introduce someone to {artist}?', ['artist']],
+    ['music-18', 'Do you ever listen to music I grew up with? What do you think of it?', []],
+    ['music-19', "What's the last song you added to a playlist?", []],
+    ['music-20', 'If you could only listen to one genre for a month, which one?', []]
+  ],
+  hobbies: [
+    ['hobbies-01', "What's something you've been into lately?", []],
+    ['hobbies-02', 'Tell me about {interest} — what got you into it?', ['interest']],
+    ['hobbies-03', 'If you could spend a whole weekend on {interest}, what would you do?', ['interest']],
+    ['hobbies-04', "What's a hobby you've always wanted to try but haven't yet?", []],
+    ['hobbies-05', "How's {game} going — are you still playing it?", ['game']],
+    ['hobbies-06', "What's the hardest part about {interest}?", ['interest']],
+    ['hobbies-07', 'If you could teach me one thing about {interest}, where would you start?', ['interest']],
+    ['hobbies-08', "What are you working on right now that you're excited about?", []],
+    ['hobbies-09', 'Is there something you used to love doing that you miss?', []],
+    ['hobbies-10', "What's a skill you want to get better at?", []],
+    ['hobbies-11', 'Want to do {activity} together sometime this week?', ['activity']],
+    ['hobbies-12', "What's the best thing you made or built recently?", []],
+    ['hobbies-13', 'If you had a whole free day, how would you spend it?', []],
+    ['hobbies-14', 'What do you and your friends do for fun lately?', []],
+    ['hobbies-15', "Have you found anything new online that's actually worth sharing?", []],
+    ['hobbies-16', "What's something about {game} that you think is underrated?", ['game']],
+    ['hobbies-17', 'If you could turn {interest} into a job, would you?', ['interest']],
+    ['hobbies-18', "What's a project you'd start if you had all the time in the world?", []],
+    ['hobbies-19', 'What are you reading or watching about {interest} right now?', ['interest']],
+    ['hobbies-20', "Show me something cool you've found lately — I want to see what you're into.", []]
+  ],
+  memories: [
+    ['memories-01', "What's a memory from when you were little that still makes you smile?", []],
+    ['memories-02', 'Do you remember learning to ride a bike? What do you remember about it?', []],
+    ['memories-03', "What's your favorite memory of us doing something together?", []],
+    ['memories-04', "What's a funny family story you've heard a hundred times but still like?", []],
+    ['memories-05', 'What was your favorite thing to do on summer break when you were younger?', []],
+    ['memories-06', 'Do you remember your first day of school? What stands out?', []],
+    ['memories-07', "What's a smell or a song that takes you right back to being a kid?", []],
+    ['memories-08', 'What was your favorite birthday you can remember, and why?', []],
+    ['memories-09', 'Is there a place from when you were little that you miss?', []],
+    ['memories-10', "What's something you used to be scared of that seems silly now?", []],
+    ['memories-11', 'What was your favorite game to play when you were small?', []],
+    ['memories-12', 'Do you remember the first movie you ever saw in a theater?', []],
+    ['memories-13', "What's a tradition from when you were little that you still like?", []],
+    ['memories-14', 'Who was your best friend when you were younger — and what did you two get up to?', []],
+    ['memories-15', "What's a memory that always makes you laugh when you think about it?", []],
+    ['memories-16', 'What was the best gift you ever got as a kid?', []],
+    ['memories-17', 'Do you remember a time you got in trouble and it turned out funny later?', []],
+    ['memories-18', "What's something you miss about being younger?", []],
+    ['memories-19', 'If you could relive one day from your childhood, which day would you pick?', []],
+    ['memories-20', "What's a story about me from when I was your age that you want to hear?", []]
+  ],
+  dreams: [
+    ['dreams-01', "What's something you want to try this year?", []],
+    ['dreams-02', "If money wasn't an issue, what would you do with your life?", []],
+    ['dreams-03', 'Where do you see yourself in five years — and what would make that a good life?', []],
+    ['dreams-04', "What's a dream you've never told anyone about?", []],
+    ['dreams-05', "How's {goal} going — are you any closer than you were?", ['goal']],
+    ['dreams-06', "What's something you want to be known for one day?", []],
+    ['dreams-07', 'If you could learn any skill instantly, what would it be?', []],
+    ['dreams-08', 'What would you do if you knew you couldn\'t fail?', []],
+    ['dreams-09', "What's a goal you have for this year that actually matters to you?", []],
+    ['dreams-10', 'If you could live anywhere in the world, where would it be?', []],
+    ['dreams-11', "What's something you want to achieve before you turn 20?", []],
+    ['dreams-12', 'What kind of life do you want to build for yourself?', []],
+    ['dreams-13', 'Is there a career or a job that actually sounds interesting to you?', []],
+    ['dreams-14', "What's the first step toward {goal} — and can I help with it?", ['goal']],
+    ['dreams-15', 'If you could start your own business, what would it be?', []],
+    ['dreams-16', "What's a place you really want to travel to one day?", []],
+    ['dreams-17', 'What does success look like to you — not to anyone else, to you?', []],
+    ['dreams-18', "What's something you're working toward that I don't know about yet?", []],
+    ['dreams-19', 'If you could change one thing about your life right now, what would it be?', []],
+    ['dreams-20', "What are you most excited about for the future?", []]
+  ],
+  friends: [
+    ['friends-01', 'How are things with your friends lately?', []],
+    ['friends-02', "Who's someone you look up to, and why?", []],
+    ['friends-03', 'Has anyone at school been on your mind lately?', []],
+    ['friends-04', "What's something funny one of your friends did recently?", []],
+    ['friends-05', 'Who do you feel most comfortable talking to — besides me, obviously.', []],
+    ['friends-06', "Is there a friend you're worried about right now?", []],
+    ['friends-07', 'What makes a good friend to you?', []],
+    ['friends-08', 'Have you met anyone new lately worth telling me about?', []],
+    ['friends-09', "What's the best thing a friend has ever done for you?", []],
+    ['friends-10', 'Is there anyone you wish you were closer to?', []],
+    ['friends-11', 'How do you know when you can really trust someone?', []],
+    ['friends-12', "What's something your friends think is cool about you?", []],
+    ['friends-13', 'Have you and your friends had any good adventures lately?', []],
+    ['friends-14', "Is there a friend you haven't talked to in a while that you miss?", []],
+    ['friends-15', 'What do you do when a friend is going through a hard time?', []],
+    ['friends-16', 'Has anyone said something lately that stuck with you?', []],
+    ['friends-17', "Who's the funniest person you know?", []],
+    ['friends-18', 'What do you think makes a friendship last?', []],
+    ['friends-19', 'Is there anything going on with your friends that you want to talk through?', []],
+    ['friends-20', 'Who would you call first if something big happened — good or bad?', []]
+  ],
+  life: [
+    ['life-01', "What's something you've learned this year that surprised you?", []],
+    ['life-02', 'What was the hardest thing you dealt with lately — and how did you handle it?', []],
+    ['life-03', 'Is there anything you wish adults understood better about being your age?', []],
+    ['life-04', "What's a lesson you learned the hard way?", []],
+    ['life-05', 'What do you think is the biggest difference between our generations?', []],
+    ['life-06', "Is there something happening in the world that you've been thinking about?", []],
+    ['life-07', "What's something you believe that most people your age don't?", []],
+    ['life-08', 'What would you tell your younger self if you could?', []],
+    ['life-09', "What's a mistake you made that actually taught you something?", []],
+    ['life-10', "How do you decide what's right when it's not obvious?", []],
+    ['life-11', "What's something you're still trying to figure out?", []],
+    ['life-12', 'What do you think matters most in life?', []],
+    ['life-13', "Is there something you've changed your mind about recently?", []],
+    ['life-14', "What's the best advice anyone's ever given you?", []],
+    ['life-15', 'What do you wish school taught you that it doesn\'t?', []],
+    ['life-16', 'How do you handle it when things feel overwhelming?', []],
+    ['life-17', "What's something you're grateful for right now?", []],
+    ['life-18', 'What does a good day look like to you?', []],
+    ['life-19', "Is there a question you've been wanting to ask me?", []],
+    ['life-20', "What's one thing you want to be different a year from now?", []]
+  ],
+  confidence: [
+    ['confidence-01', "What's something you did recently that you're proud of?", []],
+    ['confidence-02', "What's something you're good at that people don't notice enough?", []],
+    ['confidence-03', "I noticed how hard you've been working on {goal} — how does that feel?", ['goal']],
+    ['confidence-04', "What's a challenge you got through that you didn't think you could?", []],
+    ['confidence-05', 'What would you tell a friend who was doubting themselves right now?', []],
+    ['confidence-06', "What's something you want to get better at — and what's stopping you?", []],
+    ['confidence-07', 'When do you feel most confident?', []],
+    ['confidence-08', "What's a compliment you got lately that actually meant something?", []],
+    ['confidence-09', "What's something you did that took guts?", []],
+    ['confidence-10', 'How do you bounce back when something doesn\'t go your way?', []],
+    ['confidence-11', "What's a strength you have that you're proud of?", []],
+    ['confidence-12', "What would you do if you weren't afraid of what people thought?", []],
+    ['confidence-13', "What's something you've improved at this year?", []],
+    ['confidence-14', 'Who believes in you the most — and do you believe it too?', []],
+    ['confidence-15', "What's a time you stood up for yourself or someone else?", []],
+    ['confidence-16', "What are you most proud of about who you're becoming?", []],
+    ['confidence-17', 'If your best friend described you, what would they say?', []],
+    ['confidence-18', "What's something you want to prove — to yourself, not to anyone else?", []],
+    ['confidence-19', 'How do you want to be remembered by the people around you?', []],
+    ['confidence-20', "You're growing into someone I'm really proud of — what are you proud of in yourself?", []]
+  ],
+  meaningful: [
+    ['meaningful-01', "What's something you've always wanted to ask me?", []],
+    ['meaningful-02', "Is there anything you want me to know that you haven't said yet?", []],
+    ['meaningful-03', 'What does a good father–child relationship look like to you?', []],
+    ['meaningful-04', 'Is there something I do that helps — and something I do that doesn\'t?', []],
+    ['meaningful-05', "What's something you wish we talked about more?", []],
+    ['meaningful-06', 'How do you feel about where we are right now — honestly?', []],
+    ['meaningful-07', "What's something you need from me that I haven't given you?", []],
+    ['meaningful-08', 'If you could tell me one thing and know I\'d really hear it, what would it be?', []],
+    ['meaningful-09', 'What do you want our relationship to look like a year from now?', []],
+    ['meaningful-10', 'Is there anything between us that you want to fix?', []],
+    ['meaningful-11', "What does 'I'm here for you' mean to you — what does it look like?", []],
+    ['meaningful-12', "What's a memory of us that you hold onto?", []],
+    ['meaningful-13', 'How can I be a better dad to you?', []],
+    ['meaningful-14', "Is there something you're afraid to tell me? You can tell me anything.", []],
+    ['meaningful-15', 'What do you want me to understand about your life right now?', []],
+    ['meaningful-16', 'If we could start over on one thing, what would you pick?', []],
+    ['meaningful-17', "What's something you love about our family?", []],
+    ['meaningful-18', 'What do you need most from me right now?', []],
+    ['meaningful-19', "I love you — what do you want me to know about how you're doing?", []],
+    ['meaningful-20', "No matter what happens, I'm your dad and I'm not going anywhere. What do you want to talk about tonight?", []]
+  ]
+};
+
+/* ----- Say Back tones ----- */
+var DADTALK_TONES = [
+  { id: 'loving', name: 'Loving & supportive' },
+  { id: 'casual', name: 'Casual & natural' },
+  { id: 'funny', name: 'Funny & playful' },
+  { id: 'understanding', name: 'Understanding & empathetic' },
+  { id: 'encouraging', name: 'Encouraging' },
+  { id: 'advice', name: 'Advice-oriented' }
+];
+
+/* Say Back frames. {kw} is the keyword pulled from the child's message
+ * (a bare noun, e.g. "school") — only frames where a noun fits use it,
+ * and the generator only uses {kw} frames when a keyword was found. */
+var DADTALK_SAYBACK = {
+  loving: [
+    "I love you, and I'm really glad you told me that.",
+    'That sounds like a lot. I\'m here, and I\'m not going anywhere.',
+    'I hear you. Thank you for trusting me with that.',
+    "I'm proud of you for saying it out loud. That takes guts.",
+    "You don't have to carry that alone. I'm right here.",
+    "I love you no matter what. We'll figure this out together.",
+    'That matters to me because you matter to me.',
+    "I'm listening. Take your time — there's no rush.",
+    "You're my kid, and nothing changes how much I love you.",
+    "I wish I could make it better right now. I'm here for whatever you need.",
+    'Thank you for telling me. I know that wasn\'t easy.',
+    'I love you. Always. Whatever\'s going on, we face it together.',
+    'Tell me more about {kw} — I want to understand.',
+    'When you said {kw}, I could tell it mattered to you.'
+  ],
+  casual: [
+    'Yeah, I get that. Tell me more.',
+    'Fair enough. What happened next?',
+    'Got it. So what do you want to do about it?',
+    'Makes sense. How are you feeling about it now?',
+    "Okay, I'm listening. Lay it on me.",
+    "Yeah, that's rough. Want to talk it through?",
+    'I hear you. What do you think you want to do?',
+    "Alright. I'm here — what's on your mind?",
+    'That tracks. Anything else going on with it?',
+    'Cool, thanks for telling me. What else?',
+    'Yeah, I can see why that would bug you.',
+    'Gotcha. So where do you want to go from here?',
+    'So {kw} — what happened with that?',
+    "Okay, {kw} — I'm listening."
+  ],
+  funny: [
+    "Okay, that's officially the funniest thing I've heard all week.",
+    'Wow. I did not see that plot twist coming.',
+    "You can't make this stuff up. What happened next?",
+    "Alright, that's a story for the family record books.",
+    "I'm laughing, but I'm also on your side. Always.",
+    "That's so ridiculous it's actually impressive.",
+    'Note to self: never underestimate your life. It stays wild.',
+    'Okay, you win — that one got me.',
+    'I love that you told me this. Never change.',
+    "Well, that's one for the memory bank.",
+    "You're kidding. Tell me everything.",
+    'Ha! Alright, I needed that laugh today.',
+    'Okay, {kw} strikes again. Tell me everything.',
+    "Classic {kw}. Alright, I'm in — what happened?"
+  ],
+  understanding: [
+    'That sounds really hard. I get why you\'d feel that way.',
+    "It makes complete sense that you feel that way.",
+    'I hear you. That would be tough for anyone.',
+    "You're not overreacting. That sounds genuinely difficult.",
+    'I understand. Anyone in your shoes would feel the same.',
+    'That sounds heavy. I\'m glad you told me.',
+    'Of course you feel that way — that makes sense.',
+    "I'm not going to pretend I know exactly how it feels, but I'm here.",
+    'That sounds frustrating. I can see why it got to you.',
+    'You have every right to feel that way.',
+    'I hear how much that mattered to you. It matters to me too.',
+    "That sounds like a lot to carry. You don't have to carry it alone.",
+    'I can see why {kw} would feel like that.',
+    'It makes sense that {kw} is weighing on you.'
+  ],
+  encouraging: [
+    "You've gotten through hard things before, and you'll get through this too.",
+    'I believe in you. I really do.',
+    'That took guts to tell me. You\'re stronger than you think.',
+    "You're handling this better than you know.",
+    "One step at a time. You don't have to have it all figured out.",
+    "I'm proud of how you're dealing with this.",
+    "You've got this — and I've got you.",
+    "It won't always feel like this. Keep going.",
+    "The fact that you're talking about it means you're already handling it.",
+    "You're capable of more than you give yourself credit for.",
+    'Whatever happens next, we\'ll deal with it together.',
+    "I know it's hard right now, but I see how much you've grown.",
+    'You handled {kw} better than you think you did.',
+    'Look how far you\'ve come with {kw}. That counts for a lot.'
+  ],
+  advice: [
+    "Want my take? I'd start by telling them how it made you feel.",
+    "Here's what I'd do: give it a day, then talk to them straight up.",
+    'My advice? Break it into one small step and do that first.',
+    "If it were me, I'd ask them directly what they meant by that.",
+    "One thing that's worked for me: write down what you want to say first.",
+    "Want a suggestion? Sleep on it, then decide with a clear head.",
+    "Here's an idea: tell them what you need, not just what went wrong.",
+    "My two cents: don't decide anything when you're upset. Wait until you're calm.",
+    'Try this: ask yourself what the best version of this looks like, then aim for that.',
+    "If you want my honest advice, I'd talk to them face to face, not over text.",
+    'A thought: sometimes the bravest move is just saying how you feel.',
+    "Here's what I'd try: make a list of your options, then pick the one you can live with.",
+    'With {kw}, my advice is the same: start small, one step at a time.',
+    'Want my take on {kw}? Tell them straight up how it made you feel.'
+  ]
+};
+
+/* ----- what they might need (pattern-based, suggestion only) ----- */
+var DADTALK_NEEDS = [
+  { key: 'space', re: /\b(leave me alone|need space|don't talk to me|dont talk to me|go away|stop texting|leave me be)\b/i,
+    hint: 'They might need a little space right now — consider a light check-in and letting them come to you.' },
+  { key: 'advice', re: /\b(what should i do|should i|help me decide|not sure what to do|what do i do|any advice|what would you do)\b/i,
+    hint: 'They might be looking for advice — you could ask if they want your take before giving it.' },
+  { key: 'help', re: /\b(can you help|i need help|help me|i'?m stuck|can'?t figure out|i don'?t know how)\b/i,
+    hint: 'They might need practical help — consider asking what part feels stuck.' },
+  { key: 'encouragement', re: /\b(i failed|i messed up|i'?m not good enough|i gave up|bad grade|didn'?t make|i can'?t do|i suck at|everyone hates me)\b/i,
+    hint: 'They might need encouragement more than solutions — a little belief in them could go a long way.' },
+  { key: 'humor', re: /\b(bored|nothing to do|so bored|boring|i'?m bored)\b/i,
+    hint: 'They might just be bored and want something fun — a laugh or a distraction could be the move.' },
+  { key: 'listen', re: /\b(i'?m (so )?(tired|stressed|done|frustrated|annoyed|over it)|bad day|everything sucks|i can'?t take|stressed out|just need|don'?t want advice|vent|leave me alone)\b/i,
+    hint: 'Sounds like they might just need someone to listen — consider asking what happened before offering a fix.' }
+];
+var DADTALK_ASK_LINE = 'Do you want my advice, or do you just need me to listen?';
+
+/* ----- weekly challenges (week-seeded) ----- */
+var DADTALK_CHALLENGES = [
+  'Cook a meal together — or cook the same recipe on a call if you\'re apart.',
+  'Swap playlists: each of you picks 5 songs for the other to hear.',
+  'Watch the same movie apart and text each other about it as you go.',
+  'Play a game together online for an hour.',
+  'Teach each other something: you teach them one thing, they teach you one thing.',
+  'Go for a walk together — no phones, just talking.',
+  'Start a shared playlist and add one song each every day this week.',
+  'Share an old photo of yourself at their age and tell the story behind it.',
+  'Build or make something together, even a small one.',
+  'Ask each other three questions you\'ve never asked before.',
+  'Watch a show episode together on a call and talk about it after.',
+  'Write each other a short note — one thing you appreciate about the other.'
+];
+
+/* ----- Dad Talk pure logic ----- */
+function dadtalkEscapeRegExp(s) {
+  return String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+function dadtalkSlotPool(profile, slot) {
+  var p = normalizeDadTalkProfile(profile);
+  var pool;
+  if (slot === 'name') pool = p.name ? [p.name] : [];
+  else if (slot === 'interest') pool = p.interests;
+  else if (slot === 'artist') pool = p.music;
+  else if (slot === 'game') pool = p.games;
+  else if (slot === 'goal') pool = p.goals;
+  else if (slot === 'activity') pool = p.activities;
+  else if (slot === 'entertainment') pool = p.entertainment;
+  else pool = [];
+  /* A slot value that matches an avoided topic is never offered. */
+  var avoided = dadtalkAvoidedTerms(p);
+  return pool.filter(function (v) { return !dadtalkTextHasAvoided(v, avoided); });
+}
+function dadtalkAvoidedTerms(profile) {
+  var p = normalizeDadTalkProfile(profile);
+  var terms = [];
+  p.topicsAvoid.forEach(function (t) {
+    var low = String(t).toLowerCase().trim();
+    if (!low) return;
+    terms.push(low);
+    low.split(/\s+/).forEach(function (w) { if (w.length >= 3) terms.push(w); });
+  });
+  return terms;
+}
+function dadtalkTextHasAvoided(text, terms) {
+  var t = String(text || '');
+  for (var i = 0; i < terms.length; i++) {
+    if (new RegExp('\\b' + dadtalkEscapeRegExp(terms[i]) + '\\b', 'i').test(t)) return true;
+  }
+  return false;
+}
+function dadtalkFillSlots(text, profile, rng) {
+  var p = normalizeDadTalkProfile(profile);
+  var out = String(text);
+  var slots = ['name', 'interest', 'artist', 'game', 'goal', 'activity', 'entertainment'];
+  slots.forEach(function (slot) {
+    if (out.indexOf('{' + slot + '}') === -1) return;
+    var pool = dadtalkSlotPool(p, slot);
+    var val = pool.length ? pick(rng, pool) : '';
+    if (slot === 'name') val = capFirst(val);
+    out = out.split('{' + slot + '}').join(val);
+  });
+  return out;
+}
+function dadtalkStarter(categoryId, profile, seenIds, opts) {
+  opts = opts || {};
+  var seed = (opts.seed !== undefined) ? opts.seed : ((Date.now() % 2147483647) ^ Math.floor(Math.random() * 1e9));
+  var rng = makeRng(seed);
+  var bank = DADTALK_STARTERS[categoryId] || DADTALK_STARTERS.funny;
+  var prof = normalizeDadTalkProfile(profile);
+  var seen = seenIds || [];
+  var avoided = dadtalkAvoidedTerms(prof);
+  function eligible(ignoreSeen) {
+    return bank.filter(function (tpl) {
+      if (!ignoreSeen && seen.indexOf(tpl[0]) !== -1) return false;
+      for (var i = 0; i < tpl[2].length; i++) {
+        if (!dadtalkSlotPool(prof, tpl[2][i]).length) return false;
+      }
+      if (dadtalkTextHasAvoided(tpl[1], avoided)) return false;
+      return true;
+    });
+  }
+  var pool = eligible(false);
+  if (!pool.length) pool = eligible(true); /* pool exhausted: reset, still enforcing needs + avoided topics */
+  if (!pool.length) return null;
+  /* A filled slot value could itself hit an avoided term — retry a few times. */
+  for (var attempt = 0; attempt < 8; attempt++) {
+    var tpl = pick(rng, pool);
+    var text = dadtalkFillSlots(tpl[1], prof, rng);
+    if (!dadtalkTextHasAvoided(text, avoided) && text.indexOf('{') === -1) {
+      return { id: tpl[0], text: text, categoryId: categoryId };
+    }
+  }
+  var fallback = pool[0];
+  return { id: fallback[0], text: dadtalkFillSlots(fallback[1], prof, rng), categoryId: categoryId };
+}
+function dadtalkNextSeen(seen, id) {
+  var next = (seen || []).slice();
+  if (next.indexOf(id) === -1) next.push(id);
+  return next.slice(-30);
+}
+function dadtalkDateKey(d) {
+  var dt = d || new Date();
+  return dt.getFullYear() * 10000 + (dt.getMonth() + 1) * 100 + dt.getDate();
+}
+function dadtalkDailySuggestion(profile, date, seenIds) {
+  var seed = dadtalkDateKey(date || new Date());
+  var rng = makeRng(seed);
+  var cats = DADTALK_CATEGORIES.map(function (c) { return c.id; });
+  var cat = pick(rng, cats);
+  return dadtalkStarter(cat, profile, seenIds, { seed: seed });
+}
+function dadtalkWeekKey(d) {
+  var dt = d || new Date();
+  var jan1 = new Date(dt.getFullYear(), 0, 1);
+  var day = Math.floor((dt - jan1) / 86400000);
+  var week = Math.floor((day + jan1.getDay()) / 7) + 1;
+  return dt.getFullYear() + '-W' + (week < 10 ? '0' + week : '' + week);
+}
+function dadtalkWeeklyChallenge(date) {
+  var wk = dadtalkWeekKey(date || new Date());
+  var n = parseInt(wk.slice(-2), 10) || 1;
+  return { week: wk, text: DADTALK_CHALLENGES[(n - 1) % DADTALK_CHALLENGES.length] };
+}
+function dadtalkDetectNeed(text) {
+  var t = String(text || '');
+  for (var i = 0; i < DADTALK_NEEDS.length; i++) {
+    if (DADTALK_NEEDS[i].re.test(t)) return { key: DADTALK_NEEDS[i].key, hint: DADTALK_NEEDS[i].hint };
+  }
+  return { key: 'listen', hint: 'Sounds like they might just need someone to listen — consider asking what happened before offering a fix.' };
+}
+function dadtalkSayBack(text, toneId, profile, opts) {
+  opts = opts || {};
+  var seed = (opts.seed !== undefined) ? opts.seed : ((Date.now() % 2147483647) ^ Math.floor(Math.random() * 1e9));
+  var rng = makeRng(seed);
+  var tone = DADTALK_TONES.filter(function (t) { return t.id === toneId; })[0] || DADTALK_TONES[0];
+  var frames = DADTALK_SAYBACK[tone.id] || DADTALK_SAYBACK.loving;
+  var kw = extractReplyKeyword(text);
+  var prof = normalizeDadTalkProfile(profile);
+  var usable = frames.filter(function (f) { return kw || f.indexOf('{kw}') === -1; });
+  if (!usable.length) usable = frames.slice();
+  var replies = [];
+  var used = {};
+  var tries = 0;
+  while (replies.length < 3 && tries < 40) {
+    tries++;
+    var frame = pick(rng, usable);
+    var filled = frame.split('{kw}').join(kw || '');
+    filled = dadtalkFillSlots(filled, prof, rng);
+    if (!filled.trim() || used[filled] || filled.indexOf('{') !== -1) continue;
+    used[filled] = true;
+    replies.push({ label: tone.name, text: filled });
+  }
+  return { replies: replies, need: dadtalkDetectNeed(text), tone: tone.id };
+}
+function dadtalkHistoryAdd(list, entry) {
+  /* Stores generated text only — never the pasted child message. */
+  var item = {
+    id: makeId(),
+    ts: Date.now(),
+    kind: entry.kind || 'starter',
+    profile: entry.profile || null,
+    text: entry.text
+  };
+  return [item].concat(list || []).slice(0, 50);
+}
+function dadtalkFavAdd(list, fav) {
+  var item = {
+    id: makeId(),
+    ts: Date.now(),
+    kind: fav.kind || 'starter',
+    profile: fav.profile || null,
+    text: fav.text
+  };
+  if ((list || []).some(function (x) { return x.text === item.text; })) return list;
+  return [item].concat(list || []).slice(0, 100);
+}
+function dadtalkBlankStores() {
+  return {
+    profiles: { daughter: blankDadTalkProfile(), son: blankDadTalkProfile() },
+    favorites: [],
+    history: []
+  };
+}
+
 /* ---------- exports for node tests ---------- */
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
@@ -2270,7 +2874,34 @@ if (typeof module !== 'undefined' && module.exports) {
     favAdd: favAdd,
     favRemove: favRemove,
     isFav: isFav,
-    makeRng: makeRng
+    makeRng: makeRng,
+    STORAGE_DADTALK_PROFILES: STORAGE_DADTALK_PROFILES,
+    STORAGE_DADTALK_FAVORITES: STORAGE_DADTALK_FAVORITES,
+    STORAGE_DADTALK_HISTORY: STORAGE_DADTALK_HISTORY,
+    DADTALK_CATEGORIES: DADTALK_CATEGORIES,
+    DADTALK_STARTERS: DADTALK_STARTERS,
+    DADTALK_TONES: DADTALK_TONES,
+    DADTALK_SAYBACK: DADTALK_SAYBACK,
+    DADTALK_CHALLENGES: DADTALK_CHALLENGES,
+    DADTALK_NEEDS: DADTALK_NEEDS,
+    DADTALK_ASK_LINE: DADTALK_ASK_LINE,
+    blankDadTalkProfile: blankDadTalkProfile,
+    normalizeDadTalkProfile: normalizeDadTalkProfile,
+    dadtalkProfileLabel: dadtalkProfileLabel,
+    dadtalkSplitList: dadtalkSplitList,
+    dadtalkStarter: dadtalkStarter,
+    dadtalkNextSeen: dadtalkNextSeen,
+    dadtalkDateKey: dadtalkDateKey,
+    dadtalkDailySuggestion: dadtalkDailySuggestion,
+    dadtalkWeekKey: dadtalkWeekKey,
+    dadtalkWeeklyChallenge: dadtalkWeeklyChallenge,
+    dadtalkDetectNeed: dadtalkDetectNeed,
+    dadtalkSayBack: dadtalkSayBack,
+    dadtalkHistoryAdd: dadtalkHistoryAdd,
+    dadtalkFavAdd: dadtalkFavAdd,
+    dadtalkBlankStores: dadtalkBlankStores,
+    dadtalkAvoidedTerms: dadtalkAvoidedTerms,
+    dadtalkTextHasAvoided: dadtalkTextHasAvoided
   };
 }
 
@@ -2293,8 +2924,27 @@ if (typeof document !== 'undefined') (function () {
     currentInput: '',
     favorites: [],
     history: [],
-    settings: { defaultPersonality: 'hood', defaultIntensity: 5, defaultMode: 'slang', nfg: false }
+    settings: { defaultPersonality: 'hood', defaultIntensity: 5, defaultMode: 'slang', nfg: false },
+    /* ----- Dad Talk ----- */
+    dadtalkView: 'hub',
+    dadtalkProfile: 'daughter',
+    dadtalkProfiles: { daughter: blankDadTalkProfile(), son: blankDadTalkProfile() },
+    dadtalkFavorites: [],
+    dadtalkHistory: [],
+    dadtalkCategory: 'funny',
+    dadtalkTone: 'loving',
+    dadtalkStarter: null,
+    dadtalkDaily: null,
+    dadtalkSayBack: null
   };
+
+  function dtSettings() {
+    if (!state.settings.dadtalk) {
+      state.settings.dadtalk = { activeProfile: 'daughter', seenStarterIds: [], weeklyChallengeWeek: '' };
+    }
+    if (!Array.isArray(state.settings.dadtalk.seenStarterIds)) state.settings.dadtalk.seenStarterIds = [];
+    return state.settings.dadtalk;
+  }
 
   /* ----- NO FUCKS GIVEN toggle (Hood Talk only, persisted) ----- */
   function setNfg(v) {
@@ -2368,6 +3018,7 @@ if (typeof document !== 'undefined') (function () {
     if (name === 'settings') renderSettings();
     if (name === 'favorites') renderFavorites();
     if (name === 'modes') renderModes();
+    if (name === 'dadtalk') renderDadTalk();
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
@@ -2719,6 +3370,343 @@ if (typeof document !== 'undefined') (function () {
     });
   }
 
+  /* ----- Dad Talk ----- */
+  function dtProfile() { return state.dadtalkProfiles[state.dadtalkProfile]; }
+
+  function showDadTalkView(name) {
+    state.dadtalkView = name;
+    var views = document.querySelectorAll('.dt-view');
+    for (var i = 0; i < views.length; i++) views[i].hidden = views[i].id !== 'dt-view-' + name;
+    var btns = document.querySelectorAll('#dt-nav .chip');
+    for (var j = 0; j < btns.length; j++) {
+      btns[j].classList.toggle('is-active', btns[j].getAttribute('data-dtview') === name);
+    }
+    if (name === 'hub') renderDtHub();
+    if (name === 'profiles') renderDtProfileForm();
+    if (name === 'starters') renderDtStarters();
+    if (name === 'sayback') renderDtSayBack();
+  }
+
+  function setDadTalkProfile(key) {
+    state.dadtalkProfile = (key === 'son') ? 'son' : 'daughter';
+    dtSettings().activeProfile = state.dadtalkProfile;
+    saveStore(STORAGE_SETTINGS, state.settings);
+    renderDtProfileSwitcher();
+    state.dadtalkDaily = null;
+    state.dadtalkStarter = null;
+    renderDadTalk();
+  }
+
+  function renderDtProfileSwitcher() {
+    var d = $('dt-profile-daughter');
+    var s = $('dt-profile-son');
+    if (d) {
+      d.classList.toggle('is-active', state.dadtalkProfile === 'daughter');
+      d.setAttribute('aria-pressed', state.dadtalkProfile === 'daughter' ? 'true' : 'false');
+    }
+    if (s) {
+      s.classList.toggle('is-active', state.dadtalkProfile === 'son');
+      s.setAttribute('aria-pressed', state.dadtalkProfile === 'son' ? 'true' : 'false');
+    }
+  }
+
+  function renderDadTalk() {
+    renderDtProfileSwitcher();
+    showDadTalkView(state.dadtalkView);
+  }
+
+  function renderDtHub() {
+    if (!state.dadtalkDaily) {
+      state.dadtalkDaily = dadtalkDailySuggestion(dtProfile(), new Date(), dtSettings().seenStarterIds);
+    }
+    var daily = $('dt-daily-text');
+    if (daily) daily.textContent = state.dadtalkDaily ? state.dadtalkDaily.text : '';
+    var wk = dadtalkWeeklyChallenge(new Date());
+    var weekly = $('dt-weekly-text');
+    if (weekly) weekly.textContent = wk.text;
+    renderDtRecent();
+    renderDtSaved();
+  }
+
+  function renderDtRecent() {
+    var wrap = $('dt-recent-list');
+    if (!wrap) return;
+    wrap.innerHTML = '';
+    var items = state.dadtalkHistory.slice(0, 5);
+    if (!items.length) {
+      wrap.innerHTML = '<p class="empty-note">Nothing yet. Generate a starter or a reply and it\'ll show up here.</p>';
+      return;
+    }
+    items.forEach(function (item) {
+      var row = document.createElement('div');
+      row.className = 'dt-list-row';
+      var p = document.createElement('p');
+      p.className = 'dt-list-text';
+      p.textContent = item.text;
+      var del = document.createElement('button');
+      del.type = 'button'; del.className = 'mini-btn danger'; del.textContent = 'Delete';
+      del.addEventListener('click', function () {
+        state.dadtalkHistory = historyRemove(state.dadtalkHistory, item.id);
+        saveStore(STORAGE_DADTALK_HISTORY, state.dadtalkHistory);
+        renderDtRecent();
+        toast('Deleted.');
+      });
+      row.appendChild(p);
+      row.appendChild(del);
+      wrap.appendChild(row);
+    });
+  }
+
+  function renderDtSaved() {
+    var wrap = $('dt-saved-list');
+    if (!wrap) return;
+    wrap.innerHTML = '';
+    if (!state.dadtalkFavorites.length) {
+      wrap.innerHTML = '<p class="empty-note">Nothing saved yet. Tap ☆ Save on a starter or a reply to keep it here.</p>';
+      return;
+    }
+    state.dadtalkFavorites.forEach(function (fav) {
+      var row = document.createElement('div');
+      row.className = 'dt-list-row';
+      var p = document.createElement('p');
+      p.className = 'dt-list-text';
+      p.textContent = fav.text;
+      var copy = document.createElement('button');
+      copy.type = 'button'; copy.className = 'mini-btn'; copy.textContent = 'Copy';
+      copy.addEventListener('click', function () { copyText(fav.text, 'Copied.'); });
+      var del = document.createElement('button');
+      del.type = 'button'; del.className = 'mini-btn danger'; del.textContent = 'Remove';
+      del.addEventListener('click', function () {
+        state.dadtalkFavorites = favRemove(state.dadtalkFavorites, fav.id);
+        saveStore(STORAGE_DADTALK_FAVORITES, state.dadtalkFavorites);
+        renderDtSaved();
+        toast('Removed from Dad Talk favorites.');
+      });
+      row.appendChild(p);
+      row.appendChild(copy);
+      row.appendChild(del);
+      wrap.appendChild(row);
+    });
+  }
+
+  var DT_PROFILE_FIELDS = [
+    ['name', 'dt-f-name', 'text'],
+    ['age', 'dt-f-age', 'text'],
+    ['interests', 'dt-f-interests', 'list'],
+    ['music', 'dt-f-music', 'list'],
+    ['entertainment', 'dt-f-entertainment', 'list'],
+    ['games', 'dt-f-games', 'list'],
+    ['activities', 'dt-f-activities', 'list'],
+    ['commStyle', 'dt-f-commstyle', 'text'],
+    ['topicsEnjoy', 'dt-f-topics-enjoy', 'list'],
+    ['topicsAvoid', 'dt-f-topics-avoid', 'list'],
+    ['goals', 'dt-f-goals', 'list']
+  ];
+  function renderDtProfileForm() {
+    var p = dtProfile();
+    DT_PROFILE_FIELDS.forEach(function (f) {
+      var el = $(f[1]);
+      if (!el) return;
+      el.value = f[2] === 'list' ? (p[f[0]] || []).join(', ') : (p[f[0]] || '');
+    });
+    var title = $('dt-profile-title');
+    if (title) title.textContent = dadtalkProfileLabel(state.dadtalkProfile) + ' profile';
+  }
+  function saveDtProfileForm() {
+    var p = {};
+    DT_PROFILE_FIELDS.forEach(function (f) {
+      var el = $(f[1]);
+      if (!el) return;
+      p[f[0]] = f[2] === 'list' ? dadtalkSplitList(el.value) : el.value.trim();
+    });
+    state.dadtalkProfiles[state.dadtalkProfile] = normalizeDadTalkProfile(p);
+    saveStore(STORAGE_DADTALK_PROFILES, state.dadtalkProfiles);
+    toast('Profile saved.');
+  }
+
+  function renderDtStarters() {
+    var wrap = $('dt-category-chips');
+    if (wrap && !wrap.children.length) {
+      DADTALK_CATEGORIES.forEach(function (c) {
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'chip';
+        b.textContent = c.name;
+        b.setAttribute('aria-pressed', 'false');
+        b.addEventListener('click', function () {
+          state.dadtalkCategory = c.id;
+          state.dadtalkStarter = null;
+          renderDtStarters();
+        });
+        wrap.appendChild(b);
+      });
+    }
+    if (wrap) {
+      var btns = wrap.querySelectorAll('.chip');
+      DADTALK_CATEGORIES.forEach(function (c, i) {
+        if (btns[i]) {
+          btns[i].classList.toggle('is-active', c.id === state.dadtalkCategory);
+          btns[i].setAttribute('aria-pressed', c.id === state.dadtalkCategory ? 'true' : 'false');
+        }
+      });
+    }
+    if (!state.dadtalkStarter) {
+      dtGenerateStarter();
+    } else {
+      var t = $('dt-starter-text');
+      if (t) t.textContent = state.dadtalkStarter.text;
+    }
+    var note = $('dt-starter-note');
+    if (note) {
+      var p = dtProfile();
+      note.textContent = p.name
+        ? 'Personalized for ' + p.name + '.'
+        : 'No profile details yet — showing neutral starters. Add details under Profiles to personalize.';
+    }
+  }
+  function dtGenerateStarter() {
+    var res = dadtalkStarter(state.dadtalkCategory, dtProfile(), dtSettings().seenStarterIds);
+    if (!res) { toast('No starter available right now.'); return; }
+    state.dadtalkStarter = res;
+    var st = dtSettings();
+    st.seenStarterIds = dadtalkNextSeen(st.seenStarterIds, res.id);
+    saveStore(STORAGE_SETTINGS, state.settings);
+    state.dadtalkHistory = dadtalkHistoryAdd(state.dadtalkHistory, { text: res.text, kind: 'starter', profile: state.dadtalkProfile });
+    saveStore(STORAGE_DADTALK_HISTORY, state.dadtalkHistory);
+    var t = $('dt-starter-text');
+    if (t) t.textContent = res.text;
+  }
+
+  function renderDtSayBack() {
+    var wrap = $('dt-tone-chips');
+    if (wrap && !wrap.children.length) {
+      DADTALK_TONES.forEach(function (t) {
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'chip';
+        b.textContent = t.name;
+        b.setAttribute('aria-pressed', 'false');
+        b.addEventListener('click', function () {
+          state.dadtalkTone = t.id;
+          renderDtSayBack();
+        });
+        wrap.appendChild(b);
+      });
+    }
+    if (wrap) {
+      var btns = wrap.querySelectorAll('.chip');
+      DADTALK_TONES.forEach(function (t, i) {
+        if (btns[i]) {
+          btns[i].classList.toggle('is-active', t.id === state.dadtalkTone);
+          btns[i].setAttribute('aria-pressed', t.id === state.dadtalkTone ? 'true' : 'false');
+        }
+      });
+    }
+    updateDtNeedHint();
+    if (state.dadtalkSayBack) renderDtSayBackResults();
+  }
+  function updateDtNeedHint() {
+    var input = $('dt-sayback-input');
+    var hint = $('dt-need-hint');
+    if (!input || !hint) return;
+    var v = input.value.trim();
+    if (!v) { hint.hidden = true; return; }
+    var need = dadtalkDetectNeed(v);
+    hint.textContent = 'What they might need: ' + need.hint;
+    hint.hidden = false;
+  }
+  function doDtSayBack() {
+    var input = $('dt-sayback-input').value.trim();
+    if (!input) { toast('Paste what they said first.'); $('dt-sayback-input').focus(); return; }
+    /* The pasted message is processed in memory only — it is never saved. */
+    var res = dadtalkSayBack(input, state.dadtalkTone, dtProfile());
+    state.dadtalkSayBack = res;
+    res.replies.forEach(function (r) {
+      state.dadtalkHistory = dadtalkHistoryAdd(state.dadtalkHistory, { text: r.text, kind: 'sayback', profile: state.dadtalkProfile });
+    });
+    saveStore(STORAGE_DADTALK_HISTORY, state.dadtalkHistory);
+    renderDtSayBackResults();
+    var rs = $('dt-sayback-results-section');
+    if (rs && rs.scrollIntoView) rs.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+  function renderDtSayBackResults() {
+    var wrap = $('dt-sayback-results');
+    var section = $('dt-sayback-results-section');
+    if (!wrap || !section) return;
+    wrap.innerHTML = '';
+    if (!state.dadtalkSayBack || !state.dadtalkSayBack.replies.length) { section.hidden = true; return; }
+    section.hidden = false;
+    state.dadtalkSayBack.replies.forEach(function (r) {
+      wrap.appendChild(dtResultCard(r));
+    });
+    var ask = $('dt-ask-line');
+    if (ask) ask.textContent = DADTALK_ASK_LINE;
+  }
+  function dtResultCard(r) {
+    var card = document.createElement('article');
+    card.className = 'result-card';
+    var head = document.createElement('div');
+    head.className = 'result-head';
+    var label = document.createElement('span');
+    label.className = 'result-label';
+    label.textContent = r.label;
+    var favBtn = document.createElement('button');
+    favBtn.type = 'button';
+    favBtn.className = 'icon-btn' + (isFav(state.dadtalkFavorites, r.text) ? ' is-fav' : '');
+    favBtn.textContent = isFav(state.dadtalkFavorites, r.text) ? '★ Saved' : '☆ Save';
+    favBtn.setAttribute('aria-label', 'Save to Dad Talk favorites');
+    favBtn.addEventListener('click', function () {
+      if (isFav(state.dadtalkFavorites, r.text)) {
+        var existing = state.dadtalkFavorites.filter(function (x) { return x.text === r.text; })[0];
+        state.dadtalkFavorites = favRemove(state.dadtalkFavorites, existing.id);
+        toast('Removed from Dad Talk favorites.');
+      } else {
+        state.dadtalkFavorites = dadtalkFavAdd(state.dadtalkFavorites, { text: r.text, kind: 'sayback', profile: state.dadtalkProfile });
+        toast('Saved to Dad Talk favorites.');
+      }
+      saveStore(STORAGE_DADTALK_FAVORITES, state.dadtalkFavorites);
+      renderDtSayBackResults();
+      renderDtSaved();
+    });
+    head.appendChild(label);
+    head.appendChild(favBtn);
+    card.appendChild(head);
+    var body = document.createElement('p');
+    body.className = 'result-text';
+    body.textContent = r.text;
+    card.appendChild(body);
+    var actions = document.createElement('div');
+    actions.className = 'result-actions';
+    var copy = document.createElement('button');
+    copy.type = 'button'; copy.className = 'mini-btn'; copy.textContent = 'Copy';
+    copy.addEventListener('click', function () { copyText(r.text, 'Copied.'); });
+    var regen = document.createElement('button');
+    regen.type = 'button'; regen.className = 'mini-btn'; regen.textContent = 'Regenerate';
+    regen.addEventListener('click', doDtSayBack);
+    actions.appendChild(copy);
+    actions.appendChild(regen);
+    card.appendChild(actions);
+    return card;
+  }
+
+  function clearDadTalkData() {
+    if (!window.confirm('Clear all Dad Talk data? This wipes both profiles, saved items, and history.')) return;
+    var blank = dadtalkBlankStores();
+    state.dadtalkProfiles = blank.profiles;
+    state.dadtalkFavorites = blank.favorites;
+    state.dadtalkHistory = blank.history;
+    state.dadtalkStarter = null;
+    state.dadtalkDaily = null;
+    state.dadtalkSayBack = null;
+    dtSettings().seenStarterIds = [];
+    saveStore(STORAGE_DADTALK_PROFILES, state.dadtalkProfiles);
+    saveStore(STORAGE_DADTALK_FAVORITES, state.dadtalkFavorites);
+    saveStore(STORAGE_DADTALK_HISTORY, state.dadtalkHistory);
+    saveStore(STORAGE_SETTINGS, state.settings);
+    renderSettings();
+    toast('Dad Talk data cleared.');
+  }
+
   /* ----- modes tab ----- */
   function renderModes() {
     var wrap = $('modes-list');
@@ -2997,6 +3985,13 @@ if (typeof document !== 'undefined') (function () {
     if (nfgSet) nfgSet.checked = !!state.settings.nfg;
     $('history-count').textContent = state.history.length + ' saved';
     $('favorites-count').textContent = state.favorites.length + ' saved';
+    var dtCount = $('dadtalk-count');
+    if (dtCount) {
+      var profFilled = (state.dadtalkProfiles.daughter.name || state.dadtalkProfiles.daughter.interests.length ? 1 : 0) +
+        (state.dadtalkProfiles.son.name || state.dadtalkProfiles.son.interests.length ? 1 : 0);
+      dtCount.textContent = profFilled + ' profile' + (profFilled === 1 ? '' : 's') + ' · ' +
+        (state.dadtalkFavorites.length + state.dadtalkHistory.length) + ' saved';
+    }
   }
 
   /* ----- init ----- */
@@ -3008,6 +4003,13 @@ if (typeof document !== 'undefined') (function () {
     state.settings.defaultIntensity = state.settings.defaultIntensity || 5;
     state.settings.defaultMode = state.settings.defaultMode || 'slang';
     state.settings.nfg = !!state.settings.nfg;
+    if (!state.settings.dadtalk) state.settings.dadtalk = { activeProfile: 'daughter', seenStarterIds: [], weeklyChallengeWeek: '' };
+    state.dadtalkProfile = state.settings.dadtalk.activeProfile === 'son' ? 'son' : 'daughter';
+    state.dadtalkProfiles = loadStore(STORAGE_DADTALK_PROFILES, dadtalkBlankStores().profiles);
+    state.dadtalkProfiles.daughter = normalizeDadTalkProfile(state.dadtalkProfiles.daughter);
+    state.dadtalkProfiles.son = normalizeDadTalkProfile(state.dadtalkProfiles.son);
+    state.dadtalkFavorites = loadStore(STORAGE_DADTALK_FAVORITES, []);
+    state.dadtalkHistory = loadStore(STORAGE_DADTALK_HISTORY, []);
     state.nfg = state.settings.nfg;
     state.mode = state.settings.defaultMode;
     state.personality = state.settings.defaultPersonality || 'hood';
@@ -3095,12 +4097,13 @@ if (typeof document !== 'undefined') (function () {
       toast('Favorites cleared.');
     });
     $('reset-settings-btn').addEventListener('click', function () {
-      state.settings = { defaultPersonality: 'hood', defaultIntensity: 5, defaultMode: 'slang', nfg: false };
+      state.settings = { defaultPersonality: 'hood', defaultIntensity: 5, defaultMode: 'slang', nfg: false, dadtalk: { activeProfile: 'daughter', seenStarterIds: [], weeklyChallengeWeek: '' } };
       saveStore(STORAGE_SETTINGS, state.settings);
       state.personality = 'hood';
       state.intensity = 5;
       state.mode = 'slang';
       state.nfg = false;
+      state.dadtalkProfile = 'daughter';
       var home = $('nfg-toggle');
       if (home) home.checked = false;
       var set = $('settings-nfg-toggle');
@@ -3108,8 +4111,76 @@ if (typeof document !== 'undefined') (function () {
       renderPersonalityChips();
       renderModeSwitch();
       renderSettings();
+      renderDtProfileSwitcher();
       toast('Settings reset.');
     });
+    /* ----- Dad Talk wiring ----- */
+    var dtNav = document.querySelectorAll('#dt-nav .chip');
+    for (var ni = 0; ni < dtNav.length; ni++) {
+      dtNav[ni].addEventListener('click', function () { showDadTalkView(this.getAttribute('data-dtview')); });
+    }
+    $('dt-profile-daughter').addEventListener('click', function () { setDadTalkProfile('daughter'); });
+    $('dt-profile-son').addEventListener('click', function () { setDadTalkProfile('son'); });
+    $('dt-go-starters').addEventListener('click', function () { showDadTalkView('starters'); });
+    $('dt-go-sayback').addEventListener('click', function () { showDadTalkView('sayback'); });
+    $('dt-daily-copy').addEventListener('click', function () { if (state.dadtalkDaily) copyText(state.dadtalkDaily.text, 'Copied.'); });
+    $('dt-daily-save').addEventListener('click', function () {
+      if (!state.dadtalkDaily) return;
+      state.dadtalkFavorites = dadtalkFavAdd(state.dadtalkFavorites, { text: state.dadtalkDaily.text, kind: 'starter', profile: state.dadtalkProfile });
+      saveStore(STORAGE_DADTALK_FAVORITES, state.dadtalkFavorites);
+      renderDtSaved();
+      toast('Saved to Dad Talk favorites.');
+    });
+    $('dt-daily-new').addEventListener('click', function () {
+      var cats = DADTALK_CATEGORIES.map(function (c) { return c.id; });
+      var rng = makeRng((Date.now() % 2147483647) ^ Math.floor(Math.random() * 1e9));
+      var res = dadtalkStarter(pick(rng, cats), dtProfile(), dtSettings().seenStarterIds);
+      if (!res) return;
+      var st = dtSettings();
+      st.seenStarterIds = dadtalkNextSeen(st.seenStarterIds, res.id);
+      saveStore(STORAGE_SETTINGS, state.settings);
+      state.dadtalkDaily = res;
+      state.dadtalkHistory = dadtalkHistoryAdd(state.dadtalkHistory, { text: res.text, kind: 'starter', profile: state.dadtalkProfile });
+      saveStore(STORAGE_DADTALK_HISTORY, state.dadtalkHistory);
+      $('dt-daily-text').textContent = res.text;
+      renderDtRecent();
+    });
+    $('dt-weekly-copy').addEventListener('click', function () { copyText(dadtalkWeeklyChallenge(new Date()).text, 'Copied.'); });
+    $('dt-weekly-save').addEventListener('click', function () {
+      state.dadtalkFavorites = dadtalkFavAdd(state.dadtalkFavorites, { text: dadtalkWeeklyChallenge(new Date()).text, kind: 'challenge', profile: state.dadtalkProfile });
+      saveStore(STORAGE_DADTALK_FAVORITES, state.dadtalkFavorites);
+      renderDtSaved();
+      toast('Saved to Dad Talk favorites.');
+    });
+    $('dt-profile-save').addEventListener('click', saveDtProfileForm);
+    $('dt-profile-clear').addEventListener('click', function () {
+      if (!window.confirm('Clear this profile?')) return;
+      state.dadtalkProfiles[state.dadtalkProfile] = blankDadTalkProfile();
+      saveStore(STORAGE_DADTALK_PROFILES, state.dadtalkProfiles);
+      renderDtProfileForm();
+      toast('Profile cleared.');
+    });
+    $('dt-starter-copy').addEventListener('click', function () { if (state.dadtalkStarter) copyText(state.dadtalkStarter.text, 'Copied.'); });
+    $('dt-starter-regen').addEventListener('click', dtGenerateStarter);
+    $('dt-starter-save').addEventListener('click', function () {
+      if (!state.dadtalkStarter) return;
+      state.dadtalkFavorites = dadtalkFavAdd(state.dadtalkFavorites, { text: state.dadtalkStarter.text, kind: 'starter', profile: state.dadtalkProfile });
+      saveStore(STORAGE_DADTALK_FAVORITES, state.dadtalkFavorites);
+      renderDtSaved();
+      toast('Saved to Dad Talk favorites.');
+    });
+    $('dt-sayback-btn').addEventListener('click', doDtSayBack);
+    $('dt-sayback-clear').addEventListener('click', function () {
+      $('dt-sayback-input').value = '';
+      updateDtNeedHint();
+      $('dt-sayback-input').focus();
+    });
+    $('dt-sayback-input').addEventListener('input', updateDtNeedHint);
+    $('dt-sayback-input').addEventListener('keydown', function (e) {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') doDtSayBack();
+    });
+    $('dt-ask-copy').addEventListener('click', function () { copyText(DADTALK_ASK_LINE, 'Copied.'); });
+    $('clear-dadtalk-btn').addEventListener('click', clearDadTalkData);
     $('about-version').textContent = 'Version ' + VERSION;
   }
 

@@ -19,14 +19,19 @@ unhinged (10).
   Intensity scales everything. v1.2 added Fluent English (a writing
   mode: Correct Only / Polish It / Professional, with a Why? explanation
   for every fix). v1.3 added Say It Back (paste what someone said, get 3
-  reply options back in your voice). No API keys exist to expose.
+  reply options back in your voice). v1.6 added **Dad Talk** — a private
+  space for dads to start, keep, and repair conversations with their
+  kids: two profiles (Daddy–Daughter / Father–Son, both blank until the
+  dad fills them in), 200 conversation starters across 10 categories,
+  a daily suggestion + weekly challenge, and Say Back (paste what your
+  kid said, get 3 warm, natural replies in 6 tones). No API keys exist to expose.
 - Static site: `index.html` + `styles.css` + `app.js` + `icons/` +
   `manifest.webmanifest`. No build step.
 - Add to Home Screen: the PWA manifest and `apple-touch-icon` are set so
   iOS shows **HoodTalk** with its own purple speech-bubble mark — no
   wrapper branding.
 
-## Features (v1.5)
+## Features (v1.6)
 
 - **Translator (Home):** large text box, 8 personalities, intensity slider
   1–10, Translate button. Every translation returns **3 different
@@ -73,6 +78,31 @@ unhinged (10).
   Regenerate (fresh options for the same input), and Save. Replies are
   voiced through the reworked Hood Talk engine and never invent facts
   (no made-up times or promises).
+- **Dad Talk (new in v1.6):** a private space for dads, in its own
+  bottom tab (third: Home, Modes, Dad Talk, History, Favorites,
+  Settings). Two profiles — **Daddy–Daughter** and **Father–Son** —
+  both start blank and are filled in only by the dad (name, age,
+  interests, music, entertainment, games, activities, how they like to
+  communicate, topics they enjoy, topics to avoid, goals). **Starters:**
+  200 templates across 10 categories (Funny & random, Everyday
+  check-ins, Music & entertainment, Hobbies & interests, Childhood
+  memories, Dreams & future goals, Friendships & relationships, Life
+  experiences, Confidence & encouragement, Meaningful father–child),
+  personalized from profile data only — never stereotypes — with a
+  seen-set so starters don't repeat until the pool is exhausted, and
+  topics to avoid never appear. Copy / Regenerate / Save. **Daily:**
+  a date-seeded suggestion and a week-seeded challenge on the hub.
+  **Say Back:** paste what your kid said, pick one of 6 tones (Loving &
+  supportive, Casual & natural, Funny & playful, Understanding &
+  empathetic, Encouraging, Advice-oriented), get 3 genuinely different
+  replies, plus a pattern-based needs hint (phrased as a suggestion,
+  never a certainty) and the ask-permission line "Do you want my advice,
+  or do you just need me to listen?" with Copy. **Privacy, on-device
+  only:** nothing pasted is ever saved — the app processes it in memory
+  and stores only generated text the dad explicitly saves; a "Clear all
+  Dad Talk data" row in Settings wipes profiles, favorites, and history.
+  Keys: `hoodtalk.dadtalk.profiles.v1`, `.favorites.v1`, `.history.v1`.
+  Phases 4–6 (Reconnect, Activities, Practice, Coach) are v1.1, not v1.
 - **Modes:** personality browser — one-line description + example per
   personality, with a "Use" button that switches the translator to it.
   Fluent English and Say It Back have their own cards at the top.
@@ -89,8 +119,9 @@ unhinged (10).
 
 ## Structure
 
-- `index.html` — all five tabs (Home, Modes, History, Favorites,
-  Settings) + bottom tab bar.
+- `index.html` — all six tabs (Home, Modes, Dad Talk, History,
+  Favorites, Settings) + bottom tab bar. The Dad Talk panel holds four
+  sub-views (Hub, Profiles, Starters, Say Back) switched in-page.
 - `app.js` — the translation engine (lexicon, personalities, intensity
   scaling, translate-back, randomizer), history/favorites storage logic,
   and the browser UI. Pure functions are exported for node tests.
@@ -98,7 +129,8 @@ unhinged (10).
 - `icons/icon-180.png` (apple-touch-icon), `icon-192.png`, `icon-512.png`
   — drawn by `scripts/make_icons.py` (PIL).
 - `tests/test.js` — node unit tests. `tests/` has no UI test; the jsdom
-  UI smoke test lives in `/tmp` (ephemeral) and is re-created when needed.
+  UI smoke test lives in `/tmp/hoodtalk-smoke/smoke.js` (ephemeral) and
+  is re-created when needed.
 
 ## Run locally
 
@@ -113,7 +145,7 @@ python3 -m http.server 8123
 node tests/test.js
 ```
 
-92 unit tests, all passing. Covers: every personality × every input type
+116 unit tests, all passing. Covers: every personality × every input type
 (statement, question, work message, request, insult, long paragraph);
 variation distinctness; intensity 1 vs 10 flavour difference (incl.
 Crash-Out all-caps at 10); translate-back plainness (strips slang, keeps
@@ -130,15 +162,27 @@ across 12 message types; 3 distinct, labeled, responsive, in-voice
 replies per type; no invented times in question replies; repeated
 generation varies; other personalities work); history/favorites pure
 logic (incl. mode-marked entries); randomizer variety; personality
-metadata completeness.
+metadata completeness; **Dad Talk** (blank profiles; normalize/comma
+lists; starter generation per category × 20 templates, all clean text
+from a blank profile; personalization from filled profiles + neutral
+fallback when blank; avoided topics never appear; seen-set non-repetition
+and pool reset; daily/weekly determinism; Say Back 3 distinct labeled
+replies per tone + tone distinctness; needs hint is a suggestion never
+a certainty; no-retention — pasted text never hits storage; history
+cap 50 / favorites cap 100 / no duplicate favorites; content
+completeness — every template punctuated, slot names valid, every tone
+bank ≥ 12 frames); static wiring (every `getElementById` target exists
+in index.html; 6 tabs present).
 
 UI smoke test (jsdom, ephemeral, re-created when needed):
-`node /tmp/hoodtalk-ui-smoke.js` — 53 checks, all passing. Covers boot
-(chips, defaults, version), NFG toggle (present on Home + Settings,
-off by default, synced both ways, ON changes translations, OFF restores),
-slang translate (3 cards), Fluent English mode switch + fix + Why? box,
-Say It Back panel (3 labeled replies, regenerate, back), history mode
-labels, Modes tab cards.
+`node /tmp/hoodtalk-smoke/smoke.js` — 29 checks, all passing. Covers boot
+(chips, defaults, version 1.6.0), 6-tab bar order, Dad Talk hub (daily +
+weekly render, privacy note), profile save to localStorage, starters
+(10 category chips, regenerate changes text, save to Dad Talk favorites,
+history recorded), Say Back (needs hint on typing, 6 tone chips, 3
+result cards, ask-permission line, pasted text never in localStorage),
+Settings clear-all-Dad-Talk-data, and regressions (translator 3 cards,
+Fluent English fix, Say It Back 3 replies).
 
 ## Deploy
 
@@ -147,6 +191,9 @@ DevilInTheComments/hoodtalk → https://devilinthecomments.github.io/hoodtalk/
 
 ## Deliberately left for later
 
+- **Dad Talk v1.1 (Phases 4–6 of the plan):** Reconnect (rebuilding
+  after distance), Activities (things to do together), Practice
+  (rehearse a conversation), and Coach (guided help through a hard talk).
 - Full voice personalities (per-personality TTS voices beyond pitch/rate)
   — v1's Hear It button uses the browser's built-in speech synthesis.
 - Sharing translations as images, daily phrase notifications, and any

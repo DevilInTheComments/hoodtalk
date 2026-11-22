@@ -135,6 +135,136 @@
     <div id="modes-list"></div>
   </section>
 
+  <!-- ============ DAD TALK ============ -->
+  <section id="tab-dadtalk" class="tab-panel" role="tabpanel" aria-label="Dad Talk" hidden>
+    <h1 class="page-title">Dad Talk</h1>
+    <p class="page-note">Help starting, keeping, and repairing conversations with your kids.</p>
+    <p class="fine dt-privacy">Everything stays on your phone. Nothing you paste is saved unless you tap Save.</p>
+
+    <div class="field-label">Who are you talking to?</div>
+    <div class="mode-switch" role="group" aria-label="Profile">
+      <button type="button" class="mode-switch-btn is-active" id="dt-profile-daughter" aria-pressed="true">Daddy–Daughter</button>
+      <button type="button" class="mode-switch-btn" id="dt-profile-son" aria-pressed="false">Father–Son</button>
+    </div>
+
+    <div class="chips" id="dt-nav" role="group" aria-label="Dad Talk views">
+      <button type="button" class="chip is-active" data-dtview="hub">Hub</button>
+      <button type="button" class="chip" data-dtview="profiles">Profiles</button>
+      <button type="button" class="chip" data-dtview="starters">Starters</button>
+      <button type="button" class="chip" data-dtview="sayback">Say Back</button>
+    </div>
+
+    <!-- hub -->
+    <div id="dt-view-hub" class="dt-view">
+      <article class="card">
+        <div class="card-kicker">Today's suggestion</div>
+        <p id="dt-daily-text" class="dt-big"></p>
+        <div class="result-actions">
+          <button class="mini-btn" id="dt-daily-copy" type="button">Copy</button>
+          <button class="mini-btn" id="dt-daily-save" type="button">☆ Save</button>
+          <button class="mini-btn" id="dt-daily-new" type="button">Another one</button>
+        </div>
+      </article>
+      <article class="card">
+        <div class="card-kicker">This week's challenge</div>
+        <p id="dt-weekly-text" class="dt-big"></p>
+        <div class="result-actions">
+          <button class="mini-btn" id="dt-weekly-copy" type="button">Copy</button>
+          <button class="mini-btn" id="dt-weekly-save" type="button">☆ Save</button>
+        </div>
+      </article>
+      <div class="dt-quick">
+        <button class="use-mode-btn" id="dt-go-starters" type="button">Conversation starters</button>
+        <button class="use-mode-btn" id="dt-go-sayback" type="button">What should I say back?</button>
+      </div>
+      <article class="card">
+        <div class="card-kicker">Recent</div>
+        <div id="dt-recent-list"></div>
+      </article>
+      <article class="card">
+        <div class="card-kicker">Saved</div>
+        <div id="dt-saved-list"></div>
+      </article>
+    </div>
+
+    <!-- profiles -->
+    <div id="dt-view-profiles" class="dt-view" hidden>
+      <p class="page-note">Fill in what you know — everything is optional. Blank is fine: Dad Talk works with neutral questions until you add details. Nothing here is shared or sent anywhere.</p>
+      <article class="card">
+        <div class="card-kicker" id="dt-profile-title">Daddy–Daughter profile</div>
+        <label class="field-label" for="dt-f-name">Name</label>
+        <input type="text" id="dt-f-name" class="text-input" placeholder="Their name" autocomplete="off">
+        <label class="field-label" for="dt-f-age">Age</label>
+        <input type="text" id="dt-f-age" class="text-input" placeholder="e.g. 17" inputmode="numeric" autocomplete="off">
+        <label class="field-label" for="dt-f-interests">Interests &amp; hobbies</label>
+        <input type="text" id="dt-f-interests" class="text-input" placeholder="soccer, drawing, gaming" autocomplete="off">
+        <label class="field-label" for="dt-f-music">Favorite music</label>
+        <input type="text" id="dt-f-music" class="text-input" placeholder="artists or bands, separated by commas" autocomplete="off">
+        <label class="field-label" for="dt-f-entertainment">Entertainment &amp; shows</label>
+        <input type="text" id="dt-f-entertainment" class="text-input" placeholder="shows, movies, YouTube, separated by commas" autocomplete="off">
+        <label class="field-label" for="dt-f-games">Games</label>
+        <input type="text" id="dt-f-games" class="text-input" placeholder="games they play, separated by commas" autocomplete="off">
+        <label class="field-label" for="dt-f-activities">Activities</label>
+        <input type="text" id="dt-f-activities" class="text-input" placeholder="things you do together, separated by commas" autocomplete="off">
+        <label class="field-label" for="dt-f-commstyle">How they like to communicate</label>
+        <input type="text" id="dt-f-commstyle" class="text-input" placeholder="e.g. texting, in person, late at night" autocomplete="off">
+        <label class="field-label" for="dt-f-topics-enjoy">Topics they enjoy</label>
+        <input type="text" id="dt-f-topics-enjoy" class="text-input" placeholder="things they like talking about" autocomplete="off">
+        <label class="field-label" for="dt-f-topics-avoid">Topics to avoid</label>
+        <input type="text" id="dt-f-topics-avoid" class="text-input" placeholder="things that shut the conversation down" autocomplete="off">
+        <label class="field-label" for="dt-f-goals">Personal goals</label>
+        <input type="text" id="dt-f-goals" class="text-input" placeholder="things they're working toward" autocomplete="off">
+        <div class="result-actions" style="margin-top:14px">
+          <button class="mini-btn" id="dt-profile-save" type="button">Save profile</button>
+          <button class="mini-btn danger" id="dt-profile-clear" type="button">Clear this profile</button>
+        </div>
+      </article>
+    </div>
+
+    <!-- starters -->
+    <div id="dt-view-starters" class="dt-view" hidden>
+      <div class="field-label">Pick a topic</div>
+      <div class="chips" id="dt-category-chips" role="group" aria-label="Starter category"></div>
+      <article class="card">
+        <p id="dt-starter-text" class="dt-big"></p>
+        <div class="result-actions">
+          <button class="mini-btn" id="dt-starter-copy" type="button">Copy</button>
+          <button class="mini-btn" id="dt-starter-regen" type="button">Regenerate</button>
+          <button class="mini-btn" id="dt-starter-save" type="button">☆ Save</button>
+        </div>
+      </article>
+      <p class="fine" id="dt-starter-note"></p>
+    </div>
+
+    <!-- say back -->
+    <div id="dt-view-sayback" class="dt-view" hidden>
+      <p class="page-note">Paste what they said and get three ways to answer back — warm, natural, in a dad's voice. Nothing you paste is saved.</p>
+      <label class="field-label" for="dt-sayback-input">Paste what they said</label>
+      <textarea id="dt-sayback-input" rows="4" maxlength="2000" placeholder="Paste their message here…"></textarea>
+      <div class="input-row">
+        <button class="text-btn" id="dt-sayback-clear" type="button">Clear</button>
+        <span class="hint">We reply to it — we don't store it</span>
+      </div>
+      <p class="fine" id="dt-need-hint" hidden></p>
+      <div class="field-label">Answer in this tone</div>
+      <div class="chips" id="dt-tone-chips" role="group" aria-label="Reply tone"></div>
+      <button class="translate-btn" id="dt-sayback-btn" type="button">What do I say back?</button>
+      <div id="dt-sayback-results-section" hidden>
+        <div class="results-head">
+          <h2>Three ways to say it back</h2>
+        </div>
+        <div id="dt-sayback-results"></div>
+        <article class="card">
+          <div class="card-kicker">Before you send</div>
+          <p id="dt-ask-line">Do you want my advice, or do you just need me to listen?</p>
+          <div class="result-actions">
+            <button class="mini-btn" id="dt-ask-copy" type="button">Copy</button>
+          </div>
+        </article>
+      </div>
+    </div>
+  </section>
+
   <!-- ============ HISTORY ============ -->
   <section id="tab-history" class="tab-panel" role="tabpanel" aria-label="History" hidden>
     <h1 class="page-title">History</h1>
@@ -186,6 +316,10 @@
         <button class="mini-btn danger" id="clear-favorites-btn" type="button">Clear favorites</button>
       </div>
       <div class="setting-row">
+        <span>Dad Talk data · <span id="dadtalk-count">0 profiles · 0 saved</span></span>
+        <button class="mini-btn danger" id="clear-dadtalk-btn" type="button">Clear Dad Talk data</button>
+      </div>
+      <div class="setting-row">
         <span>Start fresh</span>
         <button class="mini-btn" id="reset-settings-btn" type="button">Reset settings</button>
       </div>
@@ -202,6 +336,7 @@
 <nav class="tabbar" role="tablist" aria-label="Sections">
   <button class="tab-btn is-active" role="tab" aria-selected="true" data-tab="home" type="button"><span class="tab-icon" aria-hidden="true">💬</span><span class="tab-label">Home</span></button>
   <button class="tab-btn" role="tab" aria-selected="false" data-tab="modes" type="button"><span class="tab-icon" aria-hidden="true">🎭</span><span class="tab-label">Modes</span></button>
+  <button class="tab-btn" role="tab" aria-selected="false" data-tab="dadtalk" type="button"><span class="tab-icon" aria-hidden="true">👨‍👧</span><span class="tab-label">Dad Talk</span></button>
   <button class="tab-btn" role="tab" aria-selected="false" data-tab="history" type="button"><span class="tab-icon" aria-hidden="true">🕘</span><span class="tab-label">History</span></button>
   <button class="tab-btn" role="tab" aria-selected="false" data-tab="favorites" type="button"><span class="tab-icon" aria-hidden="true">★</span><span class="tab-label">Favorites</span></button>
   <button class="tab-btn" role="tab" aria-selected="false" data-tab="settings" type="button"><span class="tab-icon" aria-hidden="true">⚙</span><span class="tab-label">Settings</span></button>

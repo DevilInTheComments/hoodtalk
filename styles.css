@@ -633,6 +633,69 @@ input[type="range"] {
   box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
 }
 
+/* ----- Dad Talk ----- */
+.dt-privacy {
+  margin-top: -6px;
+}
+
+.dt-big {
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.text-input {
+  width: 100%;
+  background: var(--surface-strong);
+  border: 1px solid var(--border-soft);
+  border-radius: 12px;
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 16px;
+  padding: 12px 14px;
+  outline: none;
+  margin-bottom: 12px;
+}
+
+.text-input::placeholder { color: var(--faint); }
+
+.dt-view { margin-top: 4px; }
+
+.dt-view .card + .card { margin-top: 14px; }
+
+.dt-quick {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 14px 0;
+}
+
+.dt-quick .use-mode-btn { margin-top: 0; }
+
+.dt-list-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 0;
+}
+
+.dt-list-row + .dt-list-row { border-top: 1px solid var(--border-soft); }
+
+.dt-list-text {
+  flex: 1;
+  font-size: 15px;
+  margin: 0;
+}
+
+.dt-list-row .mini-btn { flex: none; }
+
+#dt-need-hint {
+  background: var(--surface);
+  border: 1px solid var(--border-soft);
+  border-radius: 12px;
+  padding: 10px 12px;
+  margin: 0 0 14px;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .result-card { animation: none; }
 }

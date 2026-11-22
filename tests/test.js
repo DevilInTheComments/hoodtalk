@@ -512,5 +512,178 @@ check('say-it-back history entries store mode + labels', (function () {
   return hh[0].mode === 'sayitback' && hh[0].labels && hh[0].labels.length === 3;
 })());
 
+console.log('\n== dadtalk: profiles ==');
+check('dadtalk: blank profiles start empty (no pre-filled kid details)', (function () {
+  var b = app.dadtalkBlankStores();
+  return b.profiles.daughter.name === '' && b.profiles.son.name === '' &&
+    b.profiles.daughter.interests.length === 0 && b.profiles.son.goals.length === 0 &&
+    b.favorites.length === 0 && b.history.length === 0;
+})());
+check('dadtalk: normalize splits comma lists and trims', (function () {
+  var p = app.normalizeDadTalkProfile({ name: '  Maya ', interests: 'soccer, drawing ,', music: 'Eminem', age: '17' });
+  return p.name === 'Maya' && p.interests.length === 2 && p.interests[0] === 'soccer' && p.interests[1] === 'drawing' && p.music[0] === 'Eminem' && p.age === '17';
+})());
+check('dadtalk: profile labels use the spec names', app.dadtalkProfileLabel('daughter') === 'Daddy–Daughter' && app.dadtalkProfileLabel('son') === 'Father–Son');
+
+console.log('== dadtalk: starters ==');
+var DT_BLANK = app.blankDadTalkProfile();
+var dtCatBad = 0;
+for (var dci = 0; dci < app.DADTALK_CATEGORIES.length; dci++) {
+  var cat = app.DADTALK_CATEGORIES[dci];
+  var bank = app.DADTALK_STARTERS[cat.id];
+  if (!bank || bank.length !== 20) { dtCatBad++; console.log('FAIL  dadtalk category ' + cat.id + ' bank size: ' + (bank ? bank.length : 0)); }
+  for (var dsi = 0; dsi < 30; dsi++) {
+    var st = app.dadtalkStarter(cat.id, DT_BLANK, [], { seed: 1000 + dsi * 37 });
+    if (!st || !st.text || !st.text.trim()) { dtCatBad++; console.log('FAIL  dadtalk empty starter: ' + cat.id + ' seed ' + dsi); break; }
+    if (!/[.!?]$/.test(st.text.trim())) { dtCatBad++; console.log('FAIL  dadtalk no end punctuation: ' + cat.id + ' -> ' + st.text); break; }
+    if (st.text.indexOf('{') !== -1) { dtCatBad++; console.log('FAIL  dadtalk unfilled slot (blank profile): ' + cat.id + ' -> ' + st.text); break; }
+  }
+}
+check('dadtalk: 10 categories x 20 templates, all generate clean text from a blank profile', dtCatBad === 0, dtCatBad + ' problems');
+
+var DT_PROF = app.normalizeDadTalkProfile({ name: 'Maya', interests: ['soccer', 'drawing'], music: ['Eminem'], goals: ['make the team'] });
+var dtPers = 0, dtPersTotal = 0;
+var dtSeen = [];
+for (var pi = 0; pi < 40; pi++) {
+  var ps = app.dadtalkStarter('hobbies', DT_PROF, dtSeen, { seed: 5000 + pi * 13 });
+  dtSeen = app.dadtalkNextSeen(dtSeen, ps.id);
+  dtPersTotal++;
+  if (/Maya|soccer|drawing/.test(ps.text)) dtPers++;
+}
+check('dadtalk: filled profile personalizes starters (name/interests appear)', dtPers >= 3, dtPers + '/' + dtPersTotal + ' personalized');
+check('dadtalk: filled starters never leave a slot unfilled', (function () {
+  for (var qi = 0; qi < 40; qi++) {
+    var qs = app.dadtalkStarter('music', DT_PROF, [], { seed: 9000 + qi * 29 });
+    if (qs.text.indexOf('{') !== -1) return false;
+  }
+  return true;
+})());
+
+var DT_AVOID = app.normalizeDadTalkProfile({ interests: ['soccer'], topicsAvoid: ['soccer', 'math'] });
+var dtAvoidBad = 0;
+for (var ai = 0; ai < 100; ai++) {
+  var ac = app.DADTALK_CATEGORIES[ai % app.DADTALK_CATEGORIES.length].id;
+  var as = app.dadtalkStarter(ac, DT_AVOID, [], { seed: 20000 + ai * 17 });
+  if (/\bsoccer\b/i.test(as.text) || /\bmath\b/i.test(as.text)) { dtAvoidBad++; console.log('FAIL  dadtalk avoided topic leaked: ' + as.text); break; }
+}
+check('dadtalk: avoided topics never appear (templates + slot values)', dtAvoidBad === 0, dtAvoidBad + ' leaks');
+check('dadtalk: seen-set caps at 30 and drops oldest', (function () {
+  var seen = [];
+  for (var si = 0; si < 35; si++) seen = app.dadtalkNextSeen(seen, 'x-' + si);
+  return seen.length === 30 && seen[0] === 'x-5' && seen[29] === 'x-34';
+})());
+check('dadtalk: no repeats until a category pool is exhausted', (function () {
+  var seen = [];
+  var ids = [];
+  for (var ri = 0; ri < 20; ri++) {
+    var rs = app.dadtalkStarter('funny', DT_BLANK, seen, { seed: 30000 + ri * 11 });
+    ids.push(rs.id);
+    seen = app.dadtalkNextSeen(seen, rs.id);
+  }
+  return new Set(ids).size === 20;
+})());
+check('dadtalk: pool resets (still generates) after exhaustion', (function () {
+  var seen = [];
+  for (var ri = 0; ri < 20; ri++) seen = app.dadtalkNextSeen(seen, app.dadtalkStarter('funny', DT_BLANK, seen, { seed: 31000 + ri * 11 }).id);
+  var last = app.dadtalkStarter('funny', DT_BLANK, seen, { seed: 99999 });
+  return !!last && !!last.text;
+})());
+
+console.log('== dadtalk: daily / weekly ==');
+var dtDayA = app.dadtalkDailySuggestion(DT_BLANK, new Date(2026, 10, 22), []);
+var dtDayB = app.dadtalkDailySuggestion(DT_BLANK, new Date(2026, 10, 22), []);
+check('dadtalk: daily suggestion is deterministic per date', dtDayA.text === dtDayB.text && dtDayA.id === dtDayB.id, dtDayA.text + ' vs ' + dtDayB.text);
+var dtWkA = app.dadtalkWeeklyChallenge(new Date(2026, 10, 22));
+var dtWkB = app.dadtalkWeeklyChallenge(new Date(2026, 10, 23));
+check('dadtalk: weekly challenge is stable within a week and keyed by week', dtWkA.week === dtWkB.week && dtWkA.text === dtWkB.text && /^\d{4}-W\d{2}$/.test(dtWkA.week), dtWkA.week + ' ' + dtWkA.text);
+check('dadtalk: weekly challenges exist (12)', app.DADTALK_CHALLENGES.length === 12 && app.DADTALK_CHALLENGES.every(function (c) { return c && c.trim(); }));
+
+console.log('== dadtalk: say back ==');
+var DT_SIB_INPUT = 'I had a really bad day at school and I feel awful.';
+var dtToneBad = 0;
+for (var ti = 0; ti < app.DADTALK_TONES.length; ti++) {
+  var tone = app.DADTALK_TONES[ti];
+  var sr = app.dadtalkSayBack(DT_SIB_INPUT, tone.id, DT_BLANK, { seed: 40000 + ti * 101 });
+  if (sr.replies.length !== 3) { dtToneBad++; console.log('FAIL  dadtalk sayback ' + tone.id + ': ' + sr.replies.length + ' replies'); continue; }
+  if (new Set(sr.replies.map(function (r) { return r.text; })).size !== 3) { dtToneBad++; console.log('FAIL  dadtalk sayback replies not distinct (' + tone.id + ')'); }
+  if (sr.replies.some(function (r) { return !r.text || !/[.!?]$/.test(r.text.trim()); })) { dtToneBad++; console.log('FAIL  dadtalk sayback empty/no punctuation (' + tone.id + ')'); }
+  if (sr.replies.some(function (r) { return r.label !== tone.name; })) { dtToneBad++; console.log('FAIL  dadtalk sayback wrong label (' + tone.id + ')'); }
+}
+check('dadtalk: say back gives 3 distinct, labeled, punctuated replies per tone', dtToneBad === 0, dtToneBad + ' problems');
+check('dadtalk: tones genuinely differ for the same input', (function () {
+  var a = app.dadtalkSayBack(DT_SIB_INPUT, 'loving', DT_BLANK, { seed: 41000 });
+  var b = app.dadtalkSayBack(DT_SIB_INPUT, 'funny', DT_BLANK, { seed: 41000 });
+  var diff = a.replies.filter(function (r, i) { return r.text !== b.replies[i].text; }).length;
+  return diff >= 2;
+})());
+check('dadtalk: needs hint is a suggestion, never a certainty', (function () {
+  var cases = [
+    'I failed my math test and I feel like giving up',
+    'What should I do about my friend?',
+    'leave me alone',
+    'I need help with my homework',
+    "I'm so bored, there's nothing to do",
+    'I had a bad day and everything sucks'
+  ];
+  for (var ci = 0; ci < cases.length; ci++) {
+    var need = app.dadtalkDetectNeed(cases[ci]);
+    if (!/might|maybe|could|consider/i.test(need.hint)) return false;
+    if (/definitely|certainly|you must|you have to|they definitely|they certainly/i.test(need.hint)) return false;
+  }
+  return true;
+})());
+check('dadtalk: needs detection reads the situation', (function () {
+  return app.dadtalkDetectNeed('I failed my math test and I feel like giving up').key === 'encouragement' &&
+    app.dadtalkDetectNeed('What should I do about my friend?').key === 'advice' &&
+    app.dadtalkDetectNeed('leave me alone').key === 'space' &&
+    app.dadtalkDetectNeed('I need help with my homework').key === 'help';
+})());
+check('dadtalk: ask-permission line is the spec line', app.DADTALK_ASK_LINE === 'Do you want my advice, or do you just need me to listen?');
+
+console.log('== dadtalk: no-retention + storage ==');
+check('dadtalk: history stores generated text only — pasted text never hits storage', (function () {
+  var pasted = 'My secret message xyz123';
+  var h = app.dadtalkHistoryAdd([], { text: 'I love you, and I am here.', kind: 'sayback', profile: 'daughter' });
+  return h[0].input === undefined && h[0].pasted === undefined && JSON.stringify(h).indexOf('xyz123') === -1;
+})());
+check('dadtalk: history caps at 50, favorites cap at 100, no dup favorites', (function () {
+  var h = [];
+  for (var hi = 0; hi < 55; hi++) h = app.dadtalkHistoryAdd(h, { text: 't' + hi, kind: 'starter', profile: 'daughter' });
+  var f = [];
+  f = app.dadtalkFavAdd(f, { text: 'same', kind: 'starter', profile: 'daughter' });
+  f = app.dadtalkFavAdd(f, { text: 'same', kind: 'starter', profile: 'daughter' });
+  return h.length === 50 && f.length === 1;
+})());
+check('dadtalk: content completeness (all banks non-empty, all templates punctuated, slots valid)', (function () {
+  var ok = true;
+  var validSlots = ['name', 'interest', 'artist', 'game', 'goal', 'activity', 'entertainment'];
+  var ids = {};
+  for (var ci = 0; ci < app.DADTALK_CATEGORIES.length; ci++) {
+    var bank = app.DADTALK_STARTERS[app.DADTALK_CATEGORIES[ci].id];
+    bank.forEach(function (tpl) {
+      if (!tpl[1] || !/[.!?]$/.test(tpl[1].trim())) { ok = false; console.log('FAIL  dadtalk template punctuation: ' + tpl[0]); }
+      if (ids[tpl[0]]) { ok = false; console.log('FAIL  dadtalk duplicate template id: ' + tpl[0]); }
+      ids[tpl[0]] = true;
+      var slots = tpl[1].match(/\{[a-z]+\}/g) || [];
+      slots.forEach(function (s) { if (validSlots.indexOf(s.slice(1, -1)) === -1) { ok = false; console.log('FAIL  dadtalk bad slot ' + s + ' in ' + tpl[0]); } });
+    });
+  }
+  for (var t2 = 0; t2 < app.DADTALK_TONES.length; t2++) {
+    if (!app.DADTALK_SAYBACK[app.DADTALK_TONES[t2].id] || app.DADTALK_SAYBACK[app.DADTALK_TONES[t2].id].length < 12) { ok = false; console.log('FAIL  dadtalk tone bank short: ' + app.DADTALK_TONES[t2].id); }
+  }
+  return ok;
+})());
+check('dadtalk: version bumped to 1.6.0', app.VERSION === '1.6.0', app.VERSION);
+
+console.log('== static wiring: every getElementById target exists in index.html ==');
+var fs = require('fs');
+var htmlText = fs.readFileSync(__dirname + '/../index.html', 'utf8');
+var jsText = fs.readFileSync(__dirname + '/../app.js', 'utf8');
+var htmlIds = new Set(Array.from(htmlText.matchAll(/id="([^"]+)"/g)).map(function (m) { return m[1]; }));
+var jsRefs = Array.from(jsText.matchAll(/\$\('([^']+)'\)/g)).map(function (m) { return m[1]; });
+var missingIds = jsRefs.filter(function (r) { return !htmlIds.has(r); });
+check('static wiring: all ' + jsRefs.length + ' getElementById targets exist in index.html', missingIds.length === 0, missingIds.join(', '));
+check('static wiring: Dad Talk tab button + panel + 6th tab present', htmlText.indexOf('data-tab="dadtalk"') !== -1 && htmlText.indexOf('id="tab-dadtalk"') !== -1 && (htmlText.match(/data-tab="/g) || []).length === 6);
+
 console.log('\n' + pass + ' passed, ' + fail + ' failed.');
 process.exit(fail ? 1 : 0);
